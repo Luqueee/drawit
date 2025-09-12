@@ -187,7 +187,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
   const getMinScale = useCallback(() => {
     const { vw, vh } = getViewSize();
     if (vw === 0 || vh === 0) return 1;
-    return Math.max(vw / width, vh / height);
+    return 1;
   }, [getViewSize, width, height]);
 
   const clampOffsetForScale = useCallback(
