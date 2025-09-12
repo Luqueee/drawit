@@ -35,8 +35,8 @@ export type BoardCanvasProps = {
   initRandomPoints?: number;
 };
 
-const MAX_SCALE = 30;
-const MIN_SCALE = 4;
+const MAX_SCALE = 100;
+const MIN_SCALE = 1.5;
 const ZOOM_SPEED = 0.0018;
 
 /* =========================
@@ -445,7 +445,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       }
 
       // Respect min scale & center after layout changes
-      enforceMinScaleAndCenter();
+      // enforceMinScaleAndCenter();
       paintDirty();
     };
 
@@ -461,7 +461,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       ro.disconnect();
       window.removeEventListener("resize", applySize);
     };
-  }, [enforceMinScaleAndCenter, paintDirty]);
+  }, [paintDirty]);
 
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -762,7 +762,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
           setScaleImmediate(target);
 
           if (target <= minS + 1e-6) {
-            enforceMinScaleAndCenter(target);
+            // enforceMinScaleAndCenter(target);
           } else {
             const nx = curMid.x - worldX * target;
             const ny = curMid.y - worldY * target;
@@ -840,7 +840,16 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       setScaleImmediate(next);
 
       if (next <= MIN_SCALE + 1e-6) {
-        enforceMinScaleAndCenter(next);
+        const minS = getMinScale();
+        const sc = Math.max(next ?? scaleRef.current, minS);
+        setScaleImmediate(sc);
+
+        // Al llegar al mínimo, mantener el punto del mundo bajo el cursor
+        // en la misma posición: recalcular el offset desde worldX/worldY y
+        // luego clamp para que el mundo quede dentro de la vista.
+        const nx = cx - worldX * sc;
+        const ny = cy - worldY * sc;
+        setOffsetImmediate(clampOffsetForScale({ x: nx, y: ny }, sc));
       } else {
         const nx = cx - worldX * next;
         const ny = cy - worldY * next;
