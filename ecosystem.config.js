@@ -4,8 +4,8 @@ module.exports = {
   apps: [
     {
       name: "RPLACE-WEB",
-      script: "node_modules/next/dist/bin/next -p 3051",
-      args: "start",
+      script: "node_modules/next/dist/bin/next",
+      args: "start -p 3051",
       autorestart: true,
 
       env_prod: {
