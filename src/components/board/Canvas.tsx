@@ -13,6 +13,7 @@ import { io, Socket } from "socket.io-client";
 import { Colors, palette } from "./Colors";
 import { createPixelsAction } from "@/actions/canvas";
 import Image from "next/image";
+import { envs } from "@/env";
 
 /* =========================
  * Types & Constants
@@ -23,8 +24,6 @@ type Palette = RGB[];
 type Point = { x: number; y: number };
 type Offset = Point;
 type Rect = { x: number; y: number; w: number; h: number };
-
-const WS_URL = "https://api.luqueee.dev/rplace";
 
 export type BoardCanvasProps = {
   /** World size in cells */
@@ -141,7 +140,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
   }, []);
 
   useEffect(() => {
-    const ws = io(WS_URL, {
+    const ws = io(`${envs.API_URL}/rplace`, {
       auth: {
         token: `Bearer ${session?.accessToken}`,
       },
