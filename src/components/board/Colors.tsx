@@ -119,6 +119,27 @@ export const palette = [
   { id: 92, name: "Rosy Brown", rgb: [188, 143, 143] },
   { id: 93, name: "Slate Gray", rgb: [112, 128, 144] },
   { id: 94, name: "Light Slate Gray", rgb: [119, 136, 153] },
+
+  { id: 95, name: "Light Salmon", rgb: [255, 160, 122] },
+  { id: 96, name: "Apricot", rgb: [251, 206, 177] },
+  { id: 97, name: "Peach", rgb: [255, 218, 185] },
+  { id: 98, name: "Sunset Orange", rgb: [255, 99, 71] },
+  { id: 99, name: "Pumpkin", rgb: [255, 117, 24] },
+  { id: 100, name: "Burnt Orange", rgb: [204, 85, 0] },
+  { id: 101, name: "Copper", rgb: [184, 115, 51] },
+  { id: 102, name: "Rust", rgb: [183, 65, 14] },
+  { id: 103, name: "Terracotta", rgb: [226, 114, 91] },
+
+  // ==== Tonalidades de azul oscuro (no saturados) ====
+  { id: 104, name: "Prussian Blue", rgb: [0, 49, 83] },
+  { id: 105, name: "Dark Slate Blue", rgb: [72, 61, 139] },
+  { id: 106, name: "Steel Navy", rgb: [67, 70, 75] },
+  { id: 107, name: "Charcoal Blue", rgb: [54, 69, 79] },
+  { id: 108, name: "Midnight Blue", rgb: [25, 25, 112] },
+  { id: 109, name: "Oxford Blue", rgb: [0, 33, 71] },
+  { id: 110, name: "Gunmetal", rgb: [42, 52, 57] },
+  { id: 111, name: "Space Cadet", rgb: [29, 41, 81] },
+  { id: 112, name: "Cadet Navy", rgb: [57, 62, 70] },
 ];
 
 export const Colors: React.FC<{
