@@ -1,146 +1,133 @@
 "use client";
 
+import React from "react";
 import { Button } from "../ui/button";
 
-export const palette = [
-  { id: 0, name: "White", rgb: [255, 255, 255] }, // Background color
-  { id: 1, name: "Black", rgb: [0, 0, 0] },
+export const palette = new Map<number, [number, number, number]>([
+  [0, [255, 255, 255]], // White
+  [1, [0, 0, 0]], // Black
 
   // ==== Rojos y derivados ====
-  { id: 2, name: "Red", rgb: [220, 38, 38] },
-  { id: 3, name: "Crimson", rgb: [220, 20, 60] },
-  { id: 4, name: "Dark Red", rgb: [139, 0, 0] },
-  { id: 5, name: "Maroon", rgb: [128, 0, 0] },
-  { id: 6, name: "Salmon", rgb: [250, 128, 114] },
-  { id: 7, name: "Coral", rgb: [255, 127, 80] },
-  { id: 8, name: "Tomato", rgb: [255, 99, 71] },
-  { id: 9, name: "Rose", rgb: [251, 113, 133] },
-  { id: 10, name: "Pink", rgb: [244, 114, 182] },
+  [10, [244, 114, 182]], // Pink
+  [9, [251, 113, 133]], // Rose
+  [6, [250, 128, 114]], // Salmon
+  [7, [255, 127, 80]], // Coral
+  [8, [255, 99, 71]], // Tomato
+  [2, [220, 38, 38]], // Red
+  [3, [220, 20, 60]], // Crimson
+  [4, [139, 0, 0]], // Dark Red
+  [5, [128, 0, 0]], // Maroon
+  [83, [255, 105, 180]], // Hot Pink
+  [84, [255, 20, 147]], // Deep Pink
+  [85, [240, 128, 128]], // Light Coral
+  [92, [188, 143, 143]], // Rosy Brown
+  [87, [205, 92, 92]], // Indian Red
+  [86, [178, 34, 34]], // Firebrick
+  [36, [255, 0, 255]], // Magenta
 
   // ==== Naranjas y amarillos ====
-  { id: 11, name: "Orange", rgb: [251, 146, 60] },
-  { id: 12, name: "Dark Orange", rgb: [255, 140, 0] },
-  { id: 13, name: "Amber", rgb: [251, 191, 36] },
-  { id: 14, name: "Yellow", rgb: [250, 204, 21] },
-  { id: 15, name: "Gold", rgb: [255, 215, 0] },
-  { id: 16, name: "Khaki", rgb: [240, 230, 140] },
+  [16, [240, 230, 140]], // Khaki
+  [15, [255, 215, 0]], // Gold
+  [14, [250, 204, 21]], // Yellow
+  [13, [251, 191, 36]], // Amber
+  [11, [251, 146, 60]], // Orange
+  [12, [255, 140, 0]], // Dark Orange
+  [88, [218, 165, 32]], // Goldenrod
+  [89, [184, 134, 11]], // Dark Goldenrod
+  [90, [210, 105, 30]], // Chocolate
+  [91, [205, 133, 63]], // Peru
+  [95, [255, 160, 122]], // Light Salmon
+  [98, [255, 99, 71]], // Sunset Orange
+  [99, [255, 117, 24]], // Pumpkin
+  [103, [226, 114, 91]], // Terracotta
+  [101, [184, 115, 51]], // Copper
+  [102, [183, 65, 14]], // Rust
+  [100, [204, 85, 0]], // Burnt Orange
 
   // ==== Verdes ====
-  { id: 17, name: "Lime", rgb: [163, 230, 53] },
-  { id: 18, name: "Green", rgb: [22, 163, 74] },
-  { id: 19, name: "Emerald", rgb: [5, 150, 105] },
-  { id: 20, name: "Teal", rgb: [13, 148, 136] },
-  { id: 21, name: "Olive", rgb: [128, 128, 0] },
-  { id: 22, name: "Sea Green", rgb: [46, 139, 87] },
-  { id: 23, name: "Forest Green", rgb: [34, 139, 34] },
-  { id: 24, name: "Dark Green", rgb: [0, 100, 0] },
+  [52, [144, 238, 144]], // Light Green
+  [53, [152, 251, 152]], // Pale Green
+  [50, [0, 255, 127]], // Spring Green
+  [51, [127, 255, 0]], // Chartreuse
+  [17, [163, 230, 53]], // Lime
+  [54, [60, 179, 113]], // Medium Sea Green
+  [22, [46, 139, 87]], // Sea Green
+  [23, [34, 139, 34]], // Forest Green
+  [18, [22, 163, 74]], // Green
+  [19, [5, 150, 105]], // Emerald
+  [20, [13, 148, 136]], // Teal
+  [24, [0, 100, 0]], // Dark Green
+  [21, [128, 128, 0]], // Olive
 
   // ==== Azules ====
-  { id: 25, name: "Sky", rgb: [56, 189, 248] },
-  { id: 26, name: "Cyan", rgb: [34, 211, 238] },
-  { id: 27, name: "Turquoise", rgb: [64, 224, 208] },
-  { id: 28, name: "Aquamarine", rgb: [127, 255, 212] },
-  { id: 29, name: "Deep Sky Blue", rgb: [0, 191, 255] },
-  { id: 30, name: "Blue", rgb: [37, 99, 235] },
-  { id: 31, name: "Indigo", rgb: [79, 70, 229] },
-  { id: 32, name: "Navy", rgb: [0, 0, 128] },
+  [28, [127, 255, 212]], // Aquamarine
+  [27, [64, 224, 208]], // Turquoise
+  [26, [34, 211, 238]], // Cyan
+  [25, [56, 189, 248]], // Sky
+  [29, [0, 191, 255]], // Deep Sky Blue
+  [62, [30, 144, 255]], // Dodger Blue
+  [59, [173, 216, 230]], // Light Blue
+  [58, [176, 224, 230]], // Powder Blue
+  [60, [70, 130, 180]], // Steel Blue
+  [61, [65, 105, 225]], // Royal Blue
+  [30, [37, 99, 235]], // Blue
+  [63, [0, 0, 205]], // Medium Blue
+  [31, [79, 70, 229]], // Indigo
+  [65, [123, 104, 238]], // Medium Slate Blue
+  [64, [106, 90, 205]], // Slate Blue
+  [32, [0, 0, 128]], // Navy
+  [104, [0, 49, 83]], // Prussian Blue
+  [109, [0, 33, 71]], // Oxford Blue
+  [108, [25, 25, 112]], // Midnight Blue
+  [105, [72, 61, 139]], // Dark Slate Blue
+  [106, [67, 70, 75]], // Steel Navy
+  [112, [57, 62, 70]], // Cadet Navy
+  [110, [42, 52, 57]], // Gunmetal
+  [107, [54, 69, 79]], // Charcoal Blue
+  [111, [29, 41, 81]], // Space Cadet
 
   // ==== Violetas y púrpuras ====
-  { id: 33, name: "Violet", rgb: [124, 58, 237] },
-  { id: 34, name: "Purple", rgb: [147, 51, 234] },
-  { id: 35, name: "Orchid", rgb: [218, 112, 214] },
-  { id: 36, name: "Magenta", rgb: [255, 0, 255] },
-  { id: 37, name: "Plum", rgb: [221, 160, 221] },
-  { id: 38, name: "Lavender", rgb: [230, 230, 250] },
+  [38, [230, 230, 250]], // Lavender
+  [37, [221, 160, 221]], // Plum
+  [66, [216, 191, 216]], // Thistle
+  [35, [218, 112, 214]], // Orchid
+  [67, [186, 85, 211]], // Medium Orchid
+  [33, [124, 58, 237]], // Violet
+  [34, [147, 51, 234]], // Purple
+  [68, [153, 50, 204]], // Dark Orchid
+  [69, [148, 0, 211]], // Dark Violet
+  [70, [102, 51, 153]], // Rebecca Purple
 
   // ==== Tierras y neutros cálidos ====
-  { id: 39, name: "Brown", rgb: [113, 63, 18] },
-  { id: 40, name: "Sienna", rgb: [160, 82, 45] },
-  { id: 41, name: "Tan", rgb: [210, 180, 140] },
-  { id: 42, name: "Beige", rgb: [245, 245, 220] },
+  [42, [245, 245, 220]], // Beige
+  [41, [210, 180, 140]], // Tan
+  [40, [160, 82, 45]], // Sienna
+  [39, [113, 63, 18]], // Brown
+  [71, [189, 183, 107]], // Dark Khaki
+  [72, [222, 184, 135]], // Burly Wood
+  [73, [245, 222, 179]], // Wheat
+  [74, [255, 248, 220]], // Cornsilk
+  [75, [255, 228, 181]], // Moccasin
+  [77, [255, 228, 196]], // Bisque
+  [76, [255, 218, 185]], // Peach Puff
+  [96, [251, 206, 177]], // Apricot
+  [97, [255, 218, 185]], // Peach
+  [78, [250, 235, 215]], // Antique White
+  [79, [250, 240, 230]], // Linen
+  [80, [253, 245, 230]], // Old Lace
+  [81, [255, 250, 240]], // Floral White
+  [82, [255, 255, 240]], // Ivory
 
   // ==== Grises ====
-  { id: 43, name: "Gray", rgb: [107, 114, 128] },
-  { id: 44, name: "Dim Gray", rgb: [105, 105, 105] },
-  { id: 45, name: "Dark Gray", rgb: [64, 64, 64] },
-  { id: 46, name: "Silver", rgb: [192, 192, 192] },
-  { id: 47, name: "Light Gray", rgb: [209, 213, 219] },
-  { id: 48, name: "Gainsboro", rgb: [220, 220, 220] },
-
-  // ==== EXPANSIÓN: Colores adicionales ====
-  { id: 49, name: "Mint", rgb: [189, 252, 201] },
-  { id: 50, name: "Spring Green", rgb: [0, 255, 127] },
-  { id: 51, name: "Chartreuse", rgb: [127, 255, 0] },
-  { id: 52, name: "Light Green", rgb: [144, 238, 144] },
-  { id: 53, name: "Pale Green", rgb: [152, 251, 152] },
-  { id: 54, name: "Medium Sea Green", rgb: [60, 179, 113] },
-  { id: 55, name: "Medium Aquamarine", rgb: [102, 205, 170] },
-  { id: 56, name: "Light Sea Green", rgb: [32, 178, 170] },
-  { id: 57, name: "Cadet Blue", rgb: [95, 158, 160] },
-
-  { id: 58, name: "Powder Blue", rgb: [176, 224, 230] },
-  { id: 59, name: "Light Blue", rgb: [173, 216, 230] },
-  { id: 60, name: "Steel Blue", rgb: [70, 130, 180] },
-  { id: 61, name: "Royal Blue", rgb: [65, 105, 225] },
-  { id: 62, name: "Dodger Blue", rgb: [30, 144, 255] },
-  { id: 63, name: "Medium Blue", rgb: [0, 0, 205] },
-  { id: 64, name: "Slate Blue", rgb: [106, 90, 205] },
-  { id: 65, name: "Medium Slate Blue", rgb: [123, 104, 238] },
-
-  { id: 66, name: "Thistle", rgb: [216, 191, 216] },
-  { id: 67, name: "Medium Orchid", rgb: [186, 85, 211] },
-  { id: 68, name: "Dark Orchid", rgb: [153, 50, 204] },
-  { id: 69, name: "Dark Violet", rgb: [148, 0, 211] },
-  { id: 70, name: "Rebecca Purple", rgb: [102, 51, 153] },
-
-  { id: 71, name: "Dark Khaki", rgb: [189, 183, 107] },
-  { id: 72, name: "Burly Wood", rgb: [222, 184, 135] },
-  { id: 73, name: "Wheat", rgb: [245, 222, 179] },
-  { id: 74, name: "Cornsilk", rgb: [255, 248, 220] },
-  { id: 75, name: "Moccasin", rgb: [255, 228, 181] },
-  { id: 76, name: "Peach Puff", rgb: [255, 218, 185] },
-  { id: 77, name: "Bisque", rgb: [255, 228, 196] },
-  { id: 78, name: "Antique White", rgb: [250, 235, 215] },
-  { id: 79, name: "Linen", rgb: [250, 240, 230] },
-  { id: 80, name: "Old Lace", rgb: [253, 245, 230] },
-  { id: 81, name: "Floral White", rgb: [255, 250, 240] },
-  { id: 82, name: "Ivory", rgb: [255, 255, 240] },
-
-  // ==== Extras vibrantes ====
-  { id: 83, name: "Hot Pink", rgb: [255, 105, 180] },
-  { id: 84, name: "Deep Pink", rgb: [255, 20, 147] },
-  { id: 85, name: "Light Coral", rgb: [240, 128, 128] },
-  { id: 86, name: "Firebrick", rgb: [178, 34, 34] },
-  { id: 87, name: "Indian Red", rgb: [205, 92, 92] },
-  { id: 88, name: "Goldenrod", rgb: [218, 165, 32] },
-  { id: 89, name: "Dark Goldenrod", rgb: [184, 134, 11] },
-  { id: 90, name: "Chocolate", rgb: [210, 105, 30] },
-  { id: 91, name: "Peru", rgb: [205, 133, 63] },
-  { id: 92, name: "Rosy Brown", rgb: [188, 143, 143] },
-  { id: 93, name: "Slate Gray", rgb: [112, 128, 144] },
-  { id: 94, name: "Light Slate Gray", rgb: [119, 136, 153] },
-
-  { id: 95, name: "Light Salmon", rgb: [255, 160, 122] },
-  { id: 96, name: "Apricot", rgb: [251, 206, 177] },
-  { id: 97, name: "Peach", rgb: [255, 218, 185] },
-  { id: 98, name: "Sunset Orange", rgb: [255, 99, 71] },
-  { id: 99, name: "Pumpkin", rgb: [255, 117, 24] },
-  { id: 100, name: "Burnt Orange", rgb: [204, 85, 0] },
-  { id: 101, name: "Copper", rgb: [184, 115, 51] },
-  { id: 102, name: "Rust", rgb: [183, 65, 14] },
-  { id: 103, name: "Terracotta", rgb: [226, 114, 91] },
-
-  // ==== Tonalidades de azul oscuro (no saturados) ====
-  { id: 104, name: "Prussian Blue", rgb: [0, 49, 83] },
-  { id: 105, name: "Dark Slate Blue", rgb: [72, 61, 139] },
-  { id: 106, name: "Steel Navy", rgb: [67, 70, 75] },
-  { id: 107, name: "Charcoal Blue", rgb: [54, 69, 79] },
-  { id: 108, name: "Midnight Blue", rgb: [25, 25, 112] },
-  { id: 109, name: "Oxford Blue", rgb: [0, 33, 71] },
-  { id: 110, name: "Gunmetal", rgb: [42, 52, 57] },
-  { id: 111, name: "Space Cadet", rgb: [29, 41, 81] },
-  { id: 112, name: "Cadet Navy", rgb: [57, 62, 70] },
-];
+  [48, [220, 220, 220]], // Gainsboro
+  [47, [209, 213, 219]], // Light Gray
+  [46, [192, 192, 192]], // Silver
+  [43, [107, 114, 128]], // Gray
+  [44, [105, 105, 105]], // Dim Gray
+  [94, [119, 136, 153]], // Light Slate Gray
+  [93, [112, 128, 144]], // Slate Gray
+  [45, [64, 64, 64]], // Dark Gray
+]);
 
 export const Colors: React.FC<{
   setColor: (color: number) => void;
@@ -149,6 +136,9 @@ export const Colors: React.FC<{
   handlePaint: () => void;
   children?: React.ReactNode;
 }> = ({ setColor, color, selectedCells, handlePaint, children }) => {
+  const isColorSelected = palette.has(color) && selectedCells.length > 0;
+  const current = palette.get(color);
+
   return (
     <div className="absolute bottom-0 left-0 p-1 flex flex-col w-full  gap-1">
       <div className="flex gap-1">
@@ -157,12 +147,14 @@ export const Colors: React.FC<{
           onClick={handlePaint}
           disabled={selectedCells.length === 0}
           className={`px-3 py-1 h-full min-h-10 rounded-lg min-w-30 text-white font-bold  ${
-            color ? " hover:bg-green-700" : "bg-gray-500 cursor-not-allowed"
+            palette.has(color)
+              ? " hover:bg-green-700"
+              : "bg-gray-500 cursor-not-allowed"
           }`}
           style={
-            color && selectedCells.length > 0
+            isColorSelected && current
               ? {
-                  backgroundColor: `rgb(${palette[color].rgb.join(", ")})`,
+                  backgroundColor: `rgb(${current.join(", ")})`,
                   color: color === 0 ? "black" : "white",
                   border: color === 0 ? `2px solid black` : `none`,
                 }
@@ -176,17 +168,19 @@ export const Colors: React.FC<{
         </div>
       </div>
       <div className=" gap-2  text-white w-full  backdrop-blur-sm">
-        <div className="flex flex-wrap gap-1 bg-black/30 p-1 rounded-md">
-          {palette.map((c) => (
-            <Button
-              key={c.id}
-              className={` lg:w-10 md:w-8 w-7 h-auto aspect-square p-0 rounded-md border-2 ${
-                color === c.id ? "border-white" : "border-transparent"
-              }`}
-              style={{ backgroundColor: `rgb(${c.rgb.join(", ")})` }}
-              onClick={() => setColor(c.id)}
-            />
-          ))}
+        <div className="flex flex-wrap gap-1 bg-black/30 p-1 rounded-md md:lg:max-h-none max-h-15 overflow-y-auto">
+          {Array.from(palette.entries()).map(([id, p]) => {
+            return (
+              <Button
+                key={id}
+                className={` lg:w-10 md:w-8 w-7 h-auto aspect-square p-0 rounded-md border-2 ${
+                  color === id ? "border-white" : "border-transparent"
+                }`}
+                style={{ backgroundColor: `rgb(${p.join(", ")})` }}
+                onClick={() => setColor(id)}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

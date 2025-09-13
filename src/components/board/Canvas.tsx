@@ -295,7 +295,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         for (let xx = x; xx < x + w; xx++) {
           const idx = rowBase + xx;
           const palIndex = buf[idx]!;
-          const [r, g, b] = palette[palIndex].rgb || [0, 0, 0];
+          const [r, g, b] = palette.get(palIndex) || [0, 0, 0];
           const di = dataBase + xx * 4;
           imgData.data[di] = r;
           imgData.data[di + 1] = g;
@@ -346,14 +346,15 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       ctx.scale(scaleRef.current, scaleRef.current);
       (ctx as CanvasRenderingContext2D).imageSmoothingEnabled = false;
 
-      // Fill the selected cell
-      ctx.fillStyle = `rgba(${palette[colorOverlay].rgb.join(", ")})`;
+      // Fill the selected cell (safely handle undefined palette entries)
+      const fillRgb = palette.get(colorOverlay) || [0, 0, 0];
+      ctx.fillStyle = `rgba(${fillRgb.join(", ")}, 1)`;
       ctx.fillRect(cellX, cellY, 1, 1);
 
       // Cell-aligned border (no 0.5px offsets)
-      ctx.strokeStyle = `rgba(${palette[color === 0 ? 2 : 1].rgb.join(
-        ", "
-      )}, 1)`;
+      ctx.strokeStyle = `rgba(${(
+        palette.get(color === 0 ? 2 : 1) || [0, 0, 0]
+      ).join(", ")}, 1)`;
       ctx.lineWidth = 2 / scaleRef.current;
       ctx.strokeRect(cellX, cellY, 1, 1);
     },
