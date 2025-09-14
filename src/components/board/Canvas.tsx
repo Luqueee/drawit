@@ -10,10 +10,12 @@ import React, {
   memo,
 } from "react";
 import { io, Socket } from "socket.io-client";
-import { Colors, palette } from "./Colors";
+import { palette } from "@/shared/colors";
 import { createPixelsAction } from "@/actions/canvas";
 import Image from "next/image";
 import { envs } from "@/env";
+import { Colors } from "./Colors";
+import { Color } from "@/@types/color";
 
 /* =========================
  * Types & Constants
@@ -75,13 +77,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
   const touchStartRef = useRef<Point | null>(null);
 
   // NUEVO estado para la celda seleccionada
-  const [selectedCells, setSelectedCells] = useState<
-    {
-      x: number;
-      y: number;
-      color: number;
-    }[]
-  >([]);
+  const [selectedCells, setSelectedCells] = useState<Color[]>([]);
 
   // Backing 1:1 (offscreen if available; otherwise an in-memory <canvas>)
   const backingCanvasRef = useRef<HTMLCanvasElement | OffscreenCanvas | null>(
@@ -474,7 +470,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-    console.log("selectedCells", selectedCells, scale, offset);
+    // console.log("selectedCells", selectedCells, scale, offset);
 
     if (selectedCells.length > 0) {
       selectedCells.forEach((cell) => {
@@ -934,6 +930,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       <Colors
         setColor={setColor}
         color={color}
+        setSelectedCells={setSelectedCells}
         selectedCells={selectedCells}
         handlePaint={handlePaint}
       >
