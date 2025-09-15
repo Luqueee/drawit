@@ -16,6 +16,8 @@ import Image from "next/image";
 import { envs } from "@/env";
 import { Colors } from "./Colors";
 import { Color } from "@/@types/color";
+import { Button } from "../ui/button";
+import { IconColorPicker } from "@tabler/icons-react";
 
 /* =========================
  * Types & Constants
@@ -78,7 +80,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 
   // NUEVO estado para la celda seleccionada
   const [selectedCells, setSelectedCells] = useState<Color[]>([]);
-
+  const [colorPicker, setColorPicker] = useState(false);
   // Backing 1:1 (offscreen if available; otherwise an in-memory <canvas>)
   const backingCanvasRef = useRef<HTMLCanvasElement | OffscreenCanvas | null>(
     null
@@ -474,7 +476,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 
     if (selectedCells.length > 0) {
       selectedCells.forEach((cell) => {
-        console.log("drawOverlay", cell.x, cell.y, cell.color);
+        // console.log("drawOverlay", cell.x, cell.y, cell.color);
         drawOverlay(cell.x, cell.y, cell.color);
       });
       // const { x, y } = selectedCell;
@@ -591,13 +593,42 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     }
   };
 
+  const getPixelInformation = (x: number, y: number) => {
+    const idx = y * width + x;
+    console.log("getPixelInformation", x, y, idx);
+    const palIndex = bufferRef.current[idx]!;
+    const rgb = palette.get(palIndex) || [0, 0, 0];
+
+    return { rgb };
+  };
+
   const select = (x: number, y: number, color: number) => {
+    console.log("select", x, y, color, colorPicker);
+    if (colorPicker) {
+      const data = getPixelInformation(x, y);
+      console.log("pixel information", data);
+
+      const idColor = Array.from(palette.entries()).find(([id, rgb]) => {
+        return (
+          rgb[0] === data.rgb[0] &&
+          rgb[1] === data.rgb[1] &&
+          rgb[2] === data.rgb[2]
+        );
+      });
+
+      console.log("idColor", idColor);
+
+      setColor(idColor ? idColor[0] : 0);
+      setColorPicker(false);
+      return;
+    }
+
     setSelectedCells((prev) => {
       if (prev.length === 0) {
         fetchPixelData(x, y);
       }
       const exists = prev.some((p) => p.x === x && p.y === y);
-      console.log("click cell", x, y, color, exists);
+      // console.log("click cell", x, y, color, exists);
 
       if (exists) {
         cleanData();
@@ -606,6 +637,8 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 
       return [...prev, { x, y, color }];
     });
+
+    setColorPicker(false);
   };
 
   const onPointerDown = useCallback(
@@ -667,7 +700,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         select(x, y, color);
       }
     },
-    [screenToCell, color]
+    [screenToCell, color, colorPicker]
   );
 
   const onPointerUp = useCallback(
@@ -934,19 +967,31 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         selectedCells={selectedCells}
         handlePaint={handlePaint}
       >
-        <div className="flex gap-2 items-center min-w-20">
-          {userData && (
-            <>
-              <Image
-                src={userData.picture}
-                className="rounded-full"
-                width={30}
-                height={30}
-                alt="user pixel avatar"
-              />
-              <p>{userData.name}</p>
-            </>
-          )}
+        <Button
+          onClick={() => setColorPicker((v) => true)}
+          style={{
+            backgroundColor: colorPicker
+              ? "rgb(216, 216, 216)"
+              : "rgb(178, 178, 178)",
+          }}
+        >
+          <IconColorPicker stroke={2} />
+        </Button>
+        <div className="bg-black/30 flex items-center px-2 rounded-md">
+          <div className="flex gap-2 items-center min-w-20">
+            {userData && (
+              <>
+                <Image
+                  src={userData.picture}
+                  className="rounded-full"
+                  width={30}
+                  height={30}
+                  alt="user pixel avatar"
+                />
+                <p>{userData.name}</p>
+              </>
+            )}
+          </div>
         </div>
       </Colors>
 

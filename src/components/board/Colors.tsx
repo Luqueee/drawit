@@ -55,9 +55,7 @@ export const Colors: React.FC<{
         >
           <IconTrashFilled stroke={2} />
         </Button>
-        <div className="bg-black/30 flex items-center px-2 rounded-md">
-          {children}
-        </div>
+        {children}
       </div>
       <div className=" gap-2  text-white w-full  backdrop-blur-sm">
         <div className="flex flex-wrap gap-1 bg-black/30 p-1 rounded-md md:lg:max-h-none max-h-15 overflow-y-auto">
