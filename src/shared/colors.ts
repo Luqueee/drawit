@@ -247,4 +247,9 @@ export const palette = new Map<number, [number, number, number]>([
     [94, [119, 136, 153]],  // Light Slate Gray
     [93, [112, 128, 144]],  // Slate Gray
     [45, [64, 64, 64]],     // Dark Gray
+
+    [228, [59, 46, 125]],
+    [229, [49, 42, 109]],
+    [230, [230, 232, 249]],
+    [231, [99, 98, 162]]
 ]);
