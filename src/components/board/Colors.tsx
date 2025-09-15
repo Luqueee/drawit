@@ -63,7 +63,7 @@ export const Colors: React.FC<{
             return (
               <Button
                 key={id}
-                className={` lg:w-10 md:w-8 w-7 h-auto aspect-square p-0 rounded-md border-2 ${
+                className={` lg:w-7 md:w-6 w-7 h-auto aspect-square p-0 rounded-md border-2 ${
                   color === id ? "border-white" : "border-transparent"
                 }`}
                 style={{ backgroundColor: `rgb(${p.join(", ")})` }}

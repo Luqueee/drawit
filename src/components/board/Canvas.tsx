@@ -855,7 +855,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       const zoomAmount = Math.exp(-(isPinch ? 3 : 1) * ZOOM_SPEED * deltaY);
 
       const next = clamp(prev * zoomAmount, MIN_SCALE, MAX_SCALE);
-      console.log(zoomAmount, next);
+      // console.log(zoomAmount, next);
 
       if (next === prev) return;
 
