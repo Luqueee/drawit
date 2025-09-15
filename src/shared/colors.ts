@@ -3,6 +3,26 @@ export const palette = new Map<number, [number, number, number]>([
     [1, [0, 0, 0]], // Black
 
     // ==== Rojos y derivados ====
+    // ==== Rosas ====
+    [200, [255, 240, 245]], // Lavender Blush (rosa muy pálido)
+    [201, [255, 228, 225]], // Misty Rose (rosa neblina)
+    [202, [255, 182, 193]], // Light Pink
+    [203, [255, 192, 203]], // Pink (standard)
+    [204, [255, 175, 190]], // Pastel Rose
+    [205, [255, 160, 176]], // Candy Pink
+    [206, [255, 145, 164]], // Soft Rose
+    [207, [255, 131, 156]], // Baby Rose
+    [208, [255, 120, 147]], // Light Hot Pink
+    [209, [255, 105, 180]], // Hot Pink
+    [210, [255, 95, 160]], // Vivid Rose
+    [211, [255, 85, 150]], // Neon Pink Rose
+    [212, [255, 69, 140]], // Deep Rose
+    [213, [219, 112, 147]], // Pale Violet Red
+    [214, [199, 21, 133]], // Medium Violet Red
+    [215, [178, 34, 130]], // Dark Rose Violet
+    [216, [139, 0, 90]], // Deep Magenta Rose
+
+
     [113, [255, 182, 193]], // Light Pink
     [114, [255, 192, 203]], // Pink (Standard)
     [10, [244, 114, 182]],  // Pink
@@ -55,6 +75,18 @@ export const palette = new Map<number, [number, number, number]>([
     [16, [240, 230, 140]],  // Khaki
 
     // ==== Verdes ====
+    // ==== Verdes Claros ====
+    [190, [204, 255, 204]], // Mint Cream
+    [191, [189, 252, 201]], // Honeydew Green
+    [192, [170, 240, 190]], // Pastel Mint
+    [193, [152, 251, 152]], // Pale Green
+    [194, [144, 238, 144]], // Light Green
+    [195, [120, 220, 160]], // Soft Jade
+    [196, [102, 205, 170]], // Aquatic Mint
+    [197, [90, 200, 140]],  // Fresh Spring Green
+    [198, [200, 230, 200]], // Pastel Sage
+    [199, [180, 220, 170]], // Light Moss Green
+
     [52, [144, 238, 144]],  // Light Green
     [53, [152, 251, 152]],  // Pale Green
     [50, [0, 255, 127]],    // Spring Green
@@ -68,6 +100,17 @@ export const palette = new Map<number, [number, number, number]>([
     [20, [13, 148, 136]],   // Teal
     [24, [0, 100, 0]],      // Dark Green
     [21, [128, 128, 0]],    // Olive
+    // ==== Verdes Oscuros ====
+    [180, [34, 139, 34]],   // Forest Green
+    [181, [28, 120, 48]],   // Dark Leaf Green
+    [182, [25, 105, 42]],   // Moss Green
+    [183, [20, 90, 38]],    // Deep Emerald
+    [184, [18, 77, 33]],    // Pine Green
+    [185, [16, 65, 28]],    // Dark Pine
+    [186, [14, 55, 25]],    // Evergreen
+    [187, [12, 45, 22]],    // Midnight Green
+    [188, [10, 35, 18]],    // Charcoal Green
+    [189, [8, 25, 15]],     // Near Black Green
 
     // ==== Azules ====
     [28, [127, 255, 212]],  // Aquamarine
@@ -113,6 +156,19 @@ export const palette = new Map<number, [number, number, number]>([
     [41, [210, 180, 140]],  // Tan
     [40, [160, 82, 45]],    // Sienna
     [39, [113, 63, 18]],    // Brown
+    // ==== Marrones adicionales ==== 
+    [217, [125, 100, 35]],  // Golden Brown
+    [218, [140, 110, 40]],  // Ochre Brown
+    [219, [160, 120, 45]],  // Warm Brown
+    [220, [175, 130, 55]],  // Honey Brown
+    [221, [145, 105, 35]],  // Caramel Brown
+    [222, [120, 85, 25]],   // Deep Brown
+    [223, [100, 70, 20]],   // Dark Earth Brown
+    [224, [80, 60, 20]],    // Espresso Brown
+    [225, [65, 50, 15]],    // Coffee Bean Brown
+    [226, [50, 40, 10]],    // Ebony Brown
+    [227, [35, 25, 10]],    // Almost Black Brown
+
     [71, [189, 183, 107]],  // Dark Khaki
     [72, [222, 184, 135]],  // Burly Wood
     [73, [245, 222, 179]],  // Wheat
@@ -136,6 +192,51 @@ export const palette = new Map<number, [number, number, number]>([
     [132, [253, 245, 230]], // Almond Cream
     [133, [255, 236, 179]], // Vanilla Cream
     [134, [255, 228, 196]], // Soft Cream
+    [135, [250, 240, 190]], // Buttercream
+    [136, [255, 245, 238]], // Seashell Cream
+    [137, [255, 239, 184]], // Custard
+    [138, [255, 233, 214]], // Peach Cream
+    [139, [252, 243, 207]], // Pastel Cream
+    // ==== Variaciones del Cream Pastel (base rgb(245, 237, 154)) ====
+    [160, [250, 245, 180]], // Cream Light
+    [161, [247, 240, 165]], // Cream Base (muy cercano al original)
+    [162, [245, 237, 154]], // Cream Original
+    [163, [238, 229, 145]], // Cream Slightly Darker
+    [164, [230, 220, 130]], // Warm Cream
+    [165, [222, 210, 120]], // Golden Cream
+    [166, [210, 200, 110]], // Deep Cream
+    [167, [255, 250, 200]], // Extra Light Cream
+    [168, [253, 248, 185]], // Pastel Butter Cream
+    [169, [252, 246, 170]], // Soft Lemon Cream
+
+    // ==== Variaciones Oscuras del Cream Pastel (rgb(245, 237, 154)) ====
+    [170, [230, 215, 130]], // Dark Cream
+    [171, [215, 200, 115]], // Cream Ochre
+    [172, [200, 185, 100]], // Mustard Cream
+    [173, [185, 170, 85]],  // Golden Mustard
+    [174, [170, 155, 70]],  // Warm Mustard
+    [175, [155, 140, 60]],  // Toasted Cream
+    [176, [140, 125, 50]],  // Olive Cream
+    [177, [125, 110, 40]],  // Deep Mustard
+    [178, [110, 95, 30]],   // Brownish Mustard
+    [179, [95, 80, 25]],    // Dark Golden Brown
+
+
+    // ==== Cremas Amarillentos (variaciones de rgb(240, 230, 140)) ====
+    [140, [255, 255, 224]], // Light Khaki Cream
+    [141, [250, 250, 210]], // Pale Light Cream
+    [142, [240, 230, 140]], // Khaki Cream (base)
+    [143, [238, 232, 170]], // Pale Golden Cream
+    [144, [245, 245, 200]], // Warm Cream
+    [145, [253, 253, 200]], // Soft Pastel Cream
+    [146, [255, 239, 184]], // Honey Cream
+    [147, [255, 236, 164]], // Golden Cream
+    [148, [250, 240, 190]], // Pastel Beige Cream
+    [149, [248, 244, 196]], // Butter Cream
+    [150, [255, 245, 188]], // Sand Cream
+    [151, [252, 242, 205]], // Eggshell Cream
+    [152, [247, 236, 180]], // Light Mustard Cream
+
 
     // ==== Grises ====
     [48, [220, 220, 220]],  // Gainsboro
