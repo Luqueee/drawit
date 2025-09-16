@@ -10,14 +10,14 @@ export const createPixelsAction = async ({
     pixels: { x: number; y: number; color: number }[]
 }) => {
     const session = await auth()
-    console.log("Session in createPixelAction:", session);
+    // console.log("Session in createPixelAction:", session);
     if (!session) {
 
         console.error("No session, cannot create pixel")
         return
     }
 
-    console.log("Creating pixels:", pixels);
+    // console.log("Creating pixels:", pixels);
 
     await axios.post(`${API_URL}/pixels`, { pixels }, {
         headers: {

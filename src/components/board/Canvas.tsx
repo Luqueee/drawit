@@ -47,9 +47,26 @@ function chunkSizeForScale(scale: number) {
 
 const cid = (cx: number, cy: number, size: number) => `${size}:${cx},${cy}`;
 const parseCid = (id: string) => {
-  const [sz, rest] = id.split(":");
-  const [a, b] = rest.split(",");
-  return { size: Number(sz), cx: Number(a), cy: Number(b) };
+  // Admite "size:cx,cy" (LOD) y también "cx,cy" (sin size)
+  const hasSep = id.includes(":");
+  const [szRaw, restRaw] = hasSep ? id.split(":") : [String(BASE_CHUNK), id];
+
+  if (!restRaw || !restRaw.includes(",")) {
+    console.warn("[parseCid] id inválido:", id);
+    return { size: BASE_CHUNK, cx: 0, cy: 0 }; // fallback seguro
+  }
+
+  const [aRaw, bRaw] = restRaw.split(",");
+  const size = Number(szRaw);
+  const cx = Number(aRaw);
+  const cy = Number(bRaw);
+
+  if (!Number.isFinite(size) || !Number.isFinite(cx) || !Number.isFinite(cy)) {
+    console.warn("[parseCid] id con números inválidos:", id);
+    return { size: BASE_CHUNK, cx: 0, cy: 0 };
+  }
+
+  return { size, cx, cy };
 };
 
 type Chunk = {
@@ -443,6 +460,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         version: number;
         data: Uint8Array;
       }) => {
+        console.log("[ws] chunk:snapshot", msg.id, "v" + msg.version);
         const ch = ensureChunk(msg.id);
         if (ch.w !== msg.w || ch.h !== msg.h) return;
         if (msg.version < ch.version) return;
@@ -460,23 +478,57 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     ws.on(
       "chunk:update",
       (msg: {
-        id: string;
+        id: string; // puede ser "size:cx,cy" o "cx,cy"
         version: number;
-        pixels: Array<[number, number, number]>;
+        pixels: Array<[number, number, number]>; // [lx, ly, pal]
       }) => {
-        const ch = chunksRef.current.get(msg.id);
-        if (!ch) return;
-        if (msg.version < ch.version) return;
-        ch.version = msg.version;
-        for (const [lx, ly, pal] of msg.pixels) {
-          if (lx < 0 || ly < 0 || lx >= ch.w || ly >= ch.h) continue;
-          ch.buffer[ly * ch.w + lx] = pal;
-          ch.dirtyRects.push({ x: lx, y: ly, w: 1, h: 1 });
-          ch.dirty = true;
+        // --- 1) Aplica en el chunk de origen (el del mensaje) ---
+        const { size: srcSize, cx: srcCx, cy: srcCy } = parseCid(msg.id);
+        const srcId = cid(srcCx, srcCy, srcSize);
+        const srcCh = chunksRef.current.get(srcId) ?? ensureChunk(srcId);
+
+        // versión sólo tiene sentido compararla con el chunk origen
+        if (msg.version >= srcCh.version) {
+          srcCh.version = msg.version;
+          for (const [lx, ly, pal] of msg.pixels) {
+            if (lx < 0 || ly < 0 || lx >= srcCh.w || ly >= srcCh.h) continue;
+            srcCh.buffer[ly * srcCh.w + lx] = pal;
+            srcCh.dirtyRects.push({ x: lx, y: ly, w: 1, h: 1 });
+            srcCh.dirty = true;
+          }
         }
-        renderVisible();
+
+        // --- 2) Replica al LOD ACTUAL que estás dibujando (si es distinto) ---
+        const visS = chunkSizeForScale(scaleRef.current);
+        if (visS !== srcSize) {
+          for (const [lx, ly, pal] of msg.pixels) {
+            // coords de mundo del píxel
+            const worldX = srcCx * srcSize + lx;
+            const worldY = srcCy * srcSize + ly;
+
+            // chunk y coords locales en el LOD visible
+            const tcx = Math.floor(worldX / visS);
+            const tcy = Math.floor(worldY / visS);
+            const tid = cid(tcx, tcy, visS);
+            const tch = chunksRef.current.get(tid) ?? ensureChunk(tid);
+
+            const tlx = worldX - tcx * visS;
+            const tly = worldY - tcy * visS;
+            if (tlx < 0 || tly < 0 || tlx >= tch.w || tly >= tch.h) continue;
+
+            // OJO: versión no aplica entre LODs; sólo marcamos sucio
+            tch.buffer[tly * tch.w + tlx] = pal;
+            tch.dirtyRects.push({ x: tlx, y: tly, w: 1, h: 1 });
+            tch.dirty = true;
+          }
+        }
+
+        // --- 3) Re-pinta coalesced ---
+        renderSoon();
       }
     );
+
+    // ws.onAny((e) => console.log("[ws] event", e));
 
     return () => {
       ws.close();
@@ -785,21 +837,21 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       if (already) {
         // --- borrar ---
         committedKeysRef.current.delete(key);
-        placePixelLocal(x, y, 0); // 0 = transparente/negro según tu paleta
-        renderVisible();
+        // placePixelLocal(x, y, 0); // 0 = transparente/negro según tu paleta
 
         // quita del estado
         setSelectedCells((prev) =>
           prev.filter((c) => !(c.x === x && c.y === y))
         );
+        renderVisible();
       } else {
         // --- pintar ---
         committedKeysRef.current.add(key);
-        placePixelLocal(x, y, color);
-        renderVisible();
+        // placePixelLocal(x, y, color);
 
         const newCell: Color = { x, y, color };
         setSelectedCells((prev) => [...prev, newCell]);
+        renderVisible();
       }
     },
     [screenToCell, width, height, color, placePixelLocal, renderVisible]
