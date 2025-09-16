@@ -16,7 +16,6 @@ export default function Home() {
           width={3000}
           height={1080}
           initialScale={8} // prueba zoom inicial grande
-          initRandomPoints={800} // puntos de prueba
         />
       </div>
     </div>

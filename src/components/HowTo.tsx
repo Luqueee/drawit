@@ -22,7 +22,7 @@ export const HowTo = () => {
       <DialogContent className="h-fit md:lg:w-[60vw] w-[90vw] bg-white/50 backdrop-blur-md text-slate-600">
         <DialogHeader>
           <DialogTitle>Como Pintar</DialogTitle>
-          <DialogDescription className="mt-8 text-start flex flex-col gap-2">
+          <div className="mt-8 text-start flex flex-col gap-2">
             <p>Es muy sencillo:</p>
             <p className="font-bold">mueves con el click izquierdo</p>
             <p className="font-bold">scroll para zoom </p>
@@ -32,7 +32,7 @@ export const HowTo = () => {
               Si te preguntas porque no he hecho que con espacio puedas
               rellenar, basicamente es porque no hay limite de pixeles jejeje,
             </p>
-          </DialogDescription>
+          </div>
         </DialogHeader>
       </DialogContent>
     </Dialog>

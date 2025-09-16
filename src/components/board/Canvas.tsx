@@ -17,419 +17,524 @@ import { envs } from "@/env";
 import { Colors } from "./Colors";
 import { Color } from "@/@types/color";
 import { Button } from "../ui/button";
-import { IconColorPicker } from "@tabler/icons-react";
-
-/* =========================
- * Types & Constants
- * ========================= */
-type RGB = [number, number, number];
-type Palette = RGB[];
+import { IconColorPicker, IconTrashFilled } from "@tabler/icons-react";
 
 type Point = { x: number; y: number };
 type Offset = Point;
 type Rect = { x: number; y: number; w: number; h: number };
+type ChunkId = string;
+type TouchPt = { x: number; y: number };
 
 export type BoardCanvasProps = {
-  /** World size in cells */
   width: number;
   height: number;
-  /** Initial zoom (will be clamped to min scale dynamically) */
   initialScale?: number;
-  /** How many random test points to seed at start (0 to disable) */
-  initRandomPoints?: number;
 };
 
 const MAX_SCALE = 100;
 const MIN_SCALE = 1.5;
 const ZOOM_SPEED = 0.0018;
 
-/* =========================
- * Pure helpers (no React)
- * ========================= */
-function clamp(v: number, a: number, b: number) {
-  return Math.max(a, Math.min(b, v));
+// ---- Tiling / LOD ----
+const BASE_CHUNK = 64;
+const PREFETCH_RING = 1;
+const MAX_VISIBLE_CHUNKS = 100; // cap para zoom-out (reduce peticiones)
+function chunkSizeForScale(scale: number) {
+  if (scale < 0.4) return BASE_CHUNK * 4; // 256
+  if (scale < 0.75) return BASE_CHUNK * 2; // 128
+  return BASE_CHUNK; // 64
 }
 
-function dist(a: Point, b: Point) {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.hypot(dx, dy);
-}
+const cid = (cx: number, cy: number, size: number) => `${size}:${cx},${cy}`;
+const parseCid = (id: string) => {
+  const [sz, rest] = id.split(":");
+  const [a, b] = rest.split(",");
+  return { size: Number(sz), cx: Number(a), cy: Number(b) };
+};
 
-function midpoint(a: Point, b: Point) {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
+type Chunk = {
+  id: ChunkId;
+  size: number; // CHUNK_SIZE efectivo por LOD
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+  canvas: OffscreenCanvas | HTMLCanvasElement;
+  ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D;
+  imgData: ImageData;
+  buffer: Uint8Array;
+  dirty: boolean;
+  dirtyRects: Rect[];
+  version: number;
+};
 
-/* =========================
- * Component
- * ========================= */
 const BoardCanvas: React.FC<BoardCanvasProps> = ({
   width,
   height,
   initialScale = 0.5,
-  initRandomPoints = 800,
 }) => {
-  // Visible canvases
-
   const { data: session } = useSession();
+  const { fetchPixelData, cleanData, userData } = usePixelData();
 
-  const { fetchPixelData, cleanData, pixelData, userData } = usePixelData();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
-  const touchStartRef = useRef<Point | null>(null);
 
-  // NUEVO estado para la celda seleccionada
   const [selectedCells, setSelectedCells] = useState<Color[]>([]);
   const [colorPicker, setColorPicker] = useState(false);
-  // Backing 1:1 (offscreen if available; otherwise an in-memory <canvas>)
-  const backingCanvasRef = useRef<HTMLCanvasElement | OffscreenCanvas | null>(
-    null
-  );
-  const backingCtxRef = useRef<
-    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
-  >(null);
-
-  // Board data
-  const imgDataRef = useRef<ImageData | null>(null);
-  const bufferRef = useRef<Uint8Array>(new Uint8Array(width * height));
-
-  // View state + refs for immediate painting
-  const [scale, _setScale] = useState<number>(initialScale);
-  const [offset, _setOffset] = useState<Offset>({ x: 0, y: 0 });
-  const scaleRef = useRef<number>(initialScale);
-  const offsetRef = useRef<Offset>({ x: 0, y: 0 });
-
-  // Current drawing color (palette index)
   const [color, setColor] = useState<number>(1);
 
-  // Dirty rectangles to re-blit into ImageData -> backing
-  const dirtyRef = useRef<Rect[]>([]);
+  const [scale, _setScale] = useState<number>(initialScale);
+  const [offset, _setOffset] = useState<Offset>({ x: 0, y: 0 });
+  const scaleRef = useRef(initialScale);
+  const offsetRef = useRef<Offset>({ x: 0, y: 0 });
+  const skipNextMoveRef = useRef(false); // ignora el primer move tras soltar un dedo del pinch
 
-  // Pan / drag
+  const committedKeysRef = useRef<Set<string>>(new Set()); // todo lo ya enviado/confirmado
+
+  const setScaleImmediate = useCallback((s: number) => {
+    scaleRef.current = s;
+    _setScale(s);
+  }, []);
+  const setOffsetImmediate = useCallback((o: Offset) => {
+    offsetRef.current = o;
+    _setOffset(o);
+  }, []);
+
   const isPanningRef = useRef(false);
   const lastPanRef = useRef<Point | null>(null);
 
-  // Touch/Pinch
-  const activeTouches = useRef<Map<number, Point>>(new Map());
-  const fingers = useRef<number>(0);
-
-  const pinchRef = useRef<{
+  const activeTouches = useRef<Map<number, TouchPt>>(new Map());
+  const pinchRef = useRef<null | {
+    // mundo bajo el punto medio al INICIAR el pinch
+    worldX: number;
+    worldY: number;
+    // pantalla (px) del punto medio cuando empezó
+    startMidX: number;
+    startMidY: number;
+    // distancia inicial entre dedos
     startDist: number;
+    // escala/offset iniciales (solo para referencia)
     startScale: number;
     startOffset: Offset;
-    startMid: Point;
-  } | null>(null);
+  }>(null);
+  // Tap detection (toque corto = toggle)
+  const tapStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const tapMovedRef = useRef(false);
+
+  const TAP_MAX_MS = 250;
+  const TAP_MAX_MOVE = 8; // px de pantalla para distinguir tap de pan
+  const panningActiveRef = useRef(false); // sólo true cuando superas el umbral
 
   const wsRef = useRef<Socket | null>(null);
+  const workerRef = useRef<Worker | null>(null);
 
-  // Paint white the background
+  const chunksRef = useRef<Map<ChunkId, Chunk>>(new Map());
+  const subscribedRef = useRef<Set<ChunkId>>(new Set());
+  const rafRenderRef = useRef<number | null>(null);
 
-  /* =========================
-   * Setters that keep refs in sync
-   * ========================= */
-  const setScaleImmediate = useCallback((next: number) => {
-    scaleRef.current = next;
-    _setScale(next);
+  // ---- refs auxiliares ----
+  const inflightRef = useRef<Set<ChunkId>>(new Set());
+  const fetchFallbackTimersRef = useRef<Map<ChunkId, number>>(new Map());
+
+  // Tengo datos ya cargados (snapshot aplicado) para ese id?
+  function hasData(id: ChunkId) {
+    const ch = chunksRef.current.get(id);
+    // ajusta la condición a tu modelo: version>0 suele bastar
+    return !!(ch && ch.version > 0);
+  }
+
+  // Programa un fetch de respaldo (si el servidor no manda snapshot por WS a tiempo)
+  function scheduleFetchFallback(ids: ChunkId[], delayMs = 250) {
+    if (!workerRef.current || !ids.length) return;
+
+    for (const id of ids) {
+      // evita duplicados de timer
+      if (fetchFallbackTimersRef.current.has(id)) continue;
+
+      const t = window.setTimeout(() => {
+        fetchFallbackTimersRef.current.delete(id);
+
+        // si mientras esperábamos llegó el snapshot o ya hay fetch en vuelo, no pedir
+        if (hasData(id) || inflightRef.current.has(id)) return;
+
+        inflightRef.current.add(id);
+        const knownVersion = chunksRef.current.get(id)?.version ?? 0;
+
+        workerRef.current?.postMessage({
+          type: "FETCH",
+          ids: [id],
+          preferBatch: false,
+          knownVersions: [{ id, version: knownVersion }],
+        });
+      }, delayMs);
+
+      fetchFallbackTimersRef.current.set(id, t);
+    }
+  }
+
+  // Cancela timers pendientes de fallback para una lista de ids
+  function cancelFetchFallback(ids: ChunkId[]) {
+    for (const id of ids) {
+      const t = fetchFallbackTimersRef.current.get(id);
+      if (t) {
+        clearTimeout(t);
+        fetchFallbackTimersRef.current.delete(id);
+      }
+    }
+  }
+
+  // ------- Medidas / viewport
+  const getViewSize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { vw: 0, vh: 0 };
+    const r = canvas.getBoundingClientRect();
+    return { vw: r.width, vh: r.height };
   }, []);
 
-  const setOffsetImmediate = useCallback((next: Offset) => {
-    offsetRef.current = next;
-    _setOffset(next);
+  // ------- Chunks factory (perezosa por id)
+  const ensureChunk = useCallback(
+    (id: ChunkId) => {
+      if (chunksRef.current.has(id)) return chunksRef.current.get(id)!;
+      const { size, cx, cy } = parseCid(id);
+      const px = cx * size;
+      const py = cy * size;
+      const cw = Math.min(size, width - px);
+      const ch = Math.min(size, height - py);
+
+      const canvas =
+        typeof OffscreenCanvas !== "undefined"
+          ? new OffscreenCanvas(cw, ch)
+          : (() => {
+              const c = document.createElement("canvas");
+              c.width = cw;
+              c.height = ch;
+              return c;
+            })();
+
+      const ctx = canvas.getContext("2d", { alpha: false })!;
+      (ctx as any).imageSmoothingEnabled = false;
+
+      //@ts-expect-error aaaaaaaaa
+      const imgData = ctx.createImageData(cw, ch);
+      const buffer = new Uint8Array(cw * ch);
+
+      const chunk: Chunk = {
+        id,
+        size,
+        cx,
+        cy,
+        w: cw,
+        h: ch,
+        canvas,
+        //@ts-expect-error aaaaaaaa
+        ctx,
+        imgData,
+        buffer,
+        dirty: true,
+        dirtyRects: [{ x: 0, y: 0, w: cw, h: ch }],
+        version: 0,
+      };
+      chunksRef.current.set(id, chunk);
+      return chunk;
+    },
+    [width, height]
+  );
+
+  // ------- Raster: flush sucios
+  const flushDirty = useCallback(() => {
+    for (const ch of chunksRef.current.values()) {
+      if (!ch.dirty) continue;
+      const data = ch.imgData.data;
+      const buf = ch.buffer;
+      while (ch.dirtyRects.length) {
+        const { x, y, w, h } = ch.dirtyRects.pop()!;
+        for (let yy = y; yy < y + h; yy++) {
+          const rb = yy * ch.w;
+          const db = rb * 4;
+          for (let xx = x; xx < x + w; xx++) {
+            const bi = rb + xx;
+            const di = db + xx * 4;
+            const palIndex = buf[bi];
+            const rgb = palette.get(palIndex) || [0, 0, 0];
+            data[di] = rgb[0];
+            data[di + 1] = rgb[1];
+            data[di + 2] = rgb[2];
+            data[di + 3] = 255;
+          }
+        }
+      }
+      ch.ctx.putImageData(ch.imgData, 0, 0);
+      ch.dirty = false;
+    }
   }, []);
 
+  // ------- Render visibles
+  const renderVisible = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    flushDirty();
+
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.translate(offsetRef.current.x, offsetRef.current.y);
+    ctx.scale(scaleRef.current, scaleRef.current);
+    (ctx as CanvasRenderingContext2D).imageSmoothingEnabled = false;
+
+    const { vw, vh } = getViewSize();
+    const invS = 1 / scaleRef.current;
+
+    const left = Math.floor(-offsetRef.current.x * invS);
+    const top = Math.floor(-offsetRef.current.y * invS);
+    const right = Math.ceil((vw - offsetRef.current.x) * invS);
+    const bottom = Math.ceil((vh - offsetRef.current.y) * invS);
+
+    const S = chunkSizeForScale(scaleRef.current);
+    const cLeft = Math.max(0, Math.floor(left / S) - PREFETCH_RING);
+    const cTop = Math.max(0, Math.floor(top / S) - PREFETCH_RING);
+    const cRight = Math.min(
+      Math.ceil(width / S),
+      Math.ceil(right / S) + PREFETCH_RING
+    );
+    const cBottom = Math.min(
+      Math.ceil(height / S),
+      Math.ceil(bottom / S) + PREFETCH_RING
+    );
+
+    for (let cy = cTop; cy < cBottom; cy++) {
+      for (let cx = cLeft; cx < cRight; cx++) {
+        const id = cid(cx, cy, S);
+        const ch = ensureChunk(id);
+        ctx.drawImage(ch.canvas as any, cx * S, cy * S);
+      }
+    }
+  }, [flushDirty, ensureChunk, getViewSize, width, height]);
+
+  const renderSoon = useCallback(() => {
+    if (rafRenderRef.current != null) return;
+    rafRenderRef.current = requestAnimationFrame(() => {
+      rafRenderRef.current = null;
+      renderVisible();
+    });
+  }, [renderVisible]);
+
+  // ------- WS subscribe coalesced
+  const subAddPending = useRef<Set<ChunkId>>(new Set());
+  const subRemovePending = useRef<Set<ChunkId>>(new Set());
+  const subScheduled = useRef<number | null>(null);
+
+  const scheduleSubscribeFlush = useCallback(() => {
+    if (subScheduled.current != null) return;
+    subScheduled.current = requestAnimationFrame(() => {
+      subScheduled.current = null;
+      const ws = wsRef.current;
+      if (!ws || !ws.connected) return;
+
+      const add = Array.from(subAddPending.current);
+      const remove = Array.from(subRemovePending.current);
+      if (!add.length && !remove.length) return;
+
+      ws.emit("chunks:subscribe", { add, remove });
+
+      // Commit
+      for (const id of add) subscribedRef.current.add(id);
+      for (const id of remove) subscribedRef.current.delete(id);
+      subAddPending.current.clear();
+      subRemovePending.current.clear();
+    });
+  }, []);
+
+  // ------- Cálculo visibles + cap + prioridad centro
+  const computeVisibleIds = useCallback((): ChunkId[] => {
+    const { vw, vh } = getViewSize();
+    if (!vw || !vh) return [];
+    const S = chunkSizeForScale(scaleRef.current);
+
+    const inv = 1 / scaleRef.current;
+    const left = Math.floor(-offsetRef.current.x * inv);
+    const top = Math.floor(-offsetRef.current.y * inv);
+    const right = Math.ceil((vw - offsetRef.current.x) * inv);
+    const bottom = Math.ceil((vh - offsetRef.current.y) * inv);
+
+    const cLeft = Math.max(0, Math.floor(left / S) - PREFETCH_RING);
+    const cTop = Math.max(0, Math.floor(top / S) - PREFETCH_RING);
+    const cRight = Math.min(
+      Math.ceil(width / S),
+      Math.ceil(right / S) + PREFETCH_RING
+    );
+    const cBottom = Math.min(
+      Math.ceil(height / S),
+      Math.ceil(bottom / S) + PREFETCH_RING
+    );
+
+    const midX = (left + right) / 2;
+    const midY = (top + bottom) / 2;
+    const list: { id: ChunkId; dist: number }[] = [];
+
+    for (let cy = cTop; cy < cBottom; cy++) {
+      for (let cx = cLeft; cx < cRight; cx++) {
+        const id = cid(cx, cy, S);
+        const centerX = cx * S + S / 2;
+        const centerY = cy * S + S / 2;
+        const dx = centerX - midX,
+          dy = centerY - midY;
+        list.push({ id, dist: dx * dx + dy * dy });
+      }
+    }
+    list.sort((a, b) => a.dist - b.dist);
+    // Cap para no pedir miles de tiles al hacer zoom-out
+    return list.slice(0, MAX_VISIBLE_CHUNKS).map((x) => x.id);
+  }, [getViewSize, width, height]);
+
+  // --- syncViewport: suscribe por WS y SOLO hace fetch si no llega snapshot a tiempo ---
+  const syncViewport = useCallback(() => {
+    try {
+      const ids = computeVisibleIds();
+      const current = subscribedRef.current;
+
+      const add: ChunkId[] = [];
+      const remove: ChunkId[] = [];
+
+      // calcular altas/bajas
+      for (const id of ids) if (!current.has(id)) add.push(id);
+      for (const id of current) if (!ids.includes(id)) remove.push(id);
+
+      // WS: coalesce de suscripciones
+      for (const id of add) subAddPending.current.add(id);
+      for (const id of remove) subRemovePending.current.add(id);
+      scheduleSubscribeFlush();
+
+      // Fallback fetch: sólo si no tenemos datos ni hay una petición en vuelo
+      if (add.length) {
+        const needFallback = add.filter(
+          (id) => !hasData(id) && !inflightRef.current.has(id)
+        );
+        if (needFallback.length) scheduleFetchFallback(needFallback);
+      }
+
+      // Si se des-suscribe, cancela timers de fallback de esos ids
+      if (remove.length) {
+        cancelFetchFallback(remove);
+      }
+    } catch (e) {
+      console.log("syncViewport error", e);
+    }
+  }, [computeVisibleIds, scheduleSubscribeFlush]);
+
+  // ------- Socket IO
   useEffect(() => {
     const ws = io(`${envs.API_URL}/rplace`, {
-      auth: {
-        token: `Bearer ${session?.accessToken}`,
-      },
+      auth: { token: `Bearer ${session?.accessToken}` },
     });
     wsRef.current = ws;
 
     ws.on("connect", () => {
-      console.log("[WS] Connected");
+      syncViewport();
     });
 
-    ws.on("disconnect", () => {
-      console.log("[WS] Disconnected");
-    });
+    ws.on(
+      "chunk:snapshot",
+      (msg: {
+        id: string;
+        w: number;
+        h: number;
+        version: number;
+        data: Uint8Array;
+      }) => {
+        const ch = ensureChunk(msg.id);
+        if (ch.w !== msg.w || ch.h !== msg.h) return;
+        if (msg.version < ch.version) return;
+        ch.buffer.set(msg.data);
+        ch.version = msg.version;
+        ch.dirtyRects.length = 0;
+        ch.dirtyRects.push({ x: 0, y: 0, w: ch.w, h: ch.h });
+        ch.dirty = true;
+        renderVisible();
+        inflightRef.current.delete(msg.id);
+        cancelFetchFallback([msg.id]);
+      }
+    );
 
-    ws.on("updatePixel", (data: { x: number; y: number; color: number }) => {
-      placePixelLocal(data.x, data.y, data.color, true);
-      paintDirty();
-    });
-
-    ws.on("pixels", (data: { x: number; y: number; color: number }[]) => {
-      console.log("[WS] Received pixels batch", data);
-      data.forEach((pixel) => {
-        // console.log(pixel);
-        placePixelLocal(pixel.x, pixel.y, pixel.color, true);
-      });
-      paintDirty();
-    });
+    ws.on(
+      "chunk:update",
+      (msg: {
+        id: string;
+        version: number;
+        pixels: Array<[number, number, number]>;
+      }) => {
+        const ch = chunksRef.current.get(msg.id);
+        if (!ch) return;
+        if (msg.version < ch.version) return;
+        ch.version = msg.version;
+        for (const [lx, ly, pal] of msg.pixels) {
+          if (lx < 0 || ly < 0 || lx >= ch.w || ly >= ch.h) continue;
+          ch.buffer[ly * ch.w + lx] = pal;
+          ch.dirtyRects.push({ x: lx, y: ly, w: 1, h: 1 });
+          ch.dirty = true;
+        }
+        renderVisible();
+      }
+    );
 
     return () => {
       ws.close();
     };
-  }, []);
+  }, [ensureChunk, renderVisible, syncViewport, session?.accessToken]);
 
-  /* =========================
-   * View / Geometry helpers
-   * ========================= */
-  const getViewSize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { vw: 0, vh: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return { vw: rect.width, vh: rect.height };
-  }, []);
+  // ------- Worker
+  useEffect(() => {
+    const worker = new Worker(new URL("./chunkWorker.ts", import.meta.url), {
+      type: "module",
+    });
+    workerRef.current = worker;
 
-  const getMinScale = useCallback(() => {
-    const { vw, vh } = getViewSize();
-    if (vw === 0 || vh === 0) return 1;
-    return 1;
-  }, [getViewSize, width, height]);
+    worker.postMessage({
+      type: "INIT",
+      apiUrl: envs.API_URL,
+      token: session?.accessToken,
+    });
 
-  const clampOffsetForScale = useCallback(
-    (off: Offset, sc: number): Offset => {
-      const { vw, vh } = getViewSize();
-      const worldW = width * sc;
-      const worldH = height * sc;
-
-      // If world is smaller than view, min can be negative (center), max positive.
-      const minX = Math.min(0, vw - worldW);
-      const maxX = Math.max(0, vw - worldW);
-      const minY = Math.min(0, vh - worldH);
-      const maxY = Math.max(0, vh - worldH);
-
-      return {
-        x: clamp(off.x, minX, maxX),
-        y: clamp(off.y, minY, maxY),
-      };
-    },
-    [getViewSize, width, height]
-  );
-
-  const enforceMinScaleAndCenter = useCallback(
-    (currentScale?: number) => {
-      const minS = getMinScale();
-      const sc = Math.max(currentScale ?? scaleRef.current, minS);
-      setScaleImmediate(sc);
-
-      // Center world in view
-      const { vw, vh } = getViewSize();
-      const worldW = width * sc;
-      const worldH = height * sc;
-      const nx = (vw - worldW) / 2;
-      const ny = (vh - worldH) / 2;
-      setOffsetImmediate({ x: nx, y: ny });
-    },
-    [
-      getMinScale,
-      getViewSize,
-      setOffsetImmediate,
-      setScaleImmediate,
-      width,
-      height,
-    ]
-  );
-
-  const screenToCell = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const cx = clientX - rect.left;
-    const cy = clientY - rect.top;
-    const s = scaleRef.current;
-    const off = offsetRef.current;
-    const worldX = (cx - off.x) / s;
-    const worldY = (cy - off.y) / s;
-    return { x: Math.floor(worldX), y: Math.floor(worldY) };
-  }, []);
-
-  /* =========================
-   * Board write helpers
-   * ========================= */
-  const markDirty = useCallback((x: number, y: number, w = 1, h = 1) => {
-    dirtyRef.current.push({ x, y, w, h });
-  }, []);
-
-  const placePixelLocal = useCallback(
-    (x: number, y: number, palIndex: number, mark = true) => {
-      if (x < 0 || y < 0 || x >= width || y >= height) return;
-      bufferRef.current[y * width + x] = palIndex;
-      if (mark) markDirty(x, y, 1, 1);
-    },
-    [height, markDirty, width]
-  );
-
-  /* =========================
-   * Painting
-   * ========================= */
-  const paintDirty = useCallback(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    const backing = backingCanvasRef.current;
-    const bctx = backingCtxRef.current;
-
-    const imgData = imgDataRef.current;
-    if (!canvas || !ctx || !backing || !bctx || !imgData || !imgDataRef.current)
-      return;
-    const buf = bufferRef.current;
-    // console.log(buf);
-
-    // for (let i = 0; i < imgDataRef.current.data.length; i += 4) {
-    //   imgDataRef.current.data[i] = 255; // R
-    //   imgDataRef.current.data[i + 1] = 255; // G
-    //   imgDataRef.current.data[i + 2] = 255; // B
-    //   imgDataRef.current.data[i + 3] = 255; // A
-    // }
-
-    // 1) Flush dirty rects into ImageData
-    let rect: Rect | undefined;
-    let wrote = false;
-    while ((rect = dirtyRef.current.pop())) {
-      const { x, y, w, h } = rect;
-      for (let yy = y; yy < y + h; yy++) {
-        const rowBase = yy * width;
-        const dataBase = rowBase * 4;
-        for (let xx = x; xx < x + w; xx++) {
-          const idx = rowBase + xx;
-          const palIndex = buf[idx]!;
-          const [r, g, b] = palette.get(palIndex) || [0, 0, 0];
-          const di = dataBase + xx * 4;
-          imgData.data[di] = r;
-          imgData.data[di + 1] = g;
-          imgData.data[di + 2] = b;
-          imgData.data[di + 3] = 255;
-          wrote = true;
-        }
+    worker.onmessage = (ev: MessageEvent) => {
+      const data = ev.data;
+      if (data?.type === "SNAPSHOT") {
+        inflightRef.current.delete(data.id); // <-- importante
+        cancelFetchFallback([data.id]);
+        const ch = ensureChunk(data.id);
+        if (data.payload.length !== ch.w * ch.h) return;
+        if (data.version < ch.version) return;
+        ch.buffer.set(data.payload);
+        ch.version = data.version;
+        ch.dirtyRects.length = 0;
+        ch.dirtyRects.push({ x: 0, y: 0, w: ch.w, h: ch.h });
+        ch.dirty = true;
+        renderVisible();
       }
-    }
-    if (wrote) {
-      // putImageData positions the top-left corner at (0, 0)
-      bctx.putImageData(imgData, 0, 0);
-    }
+    };
 
-    // 2) Draw backing into visible canvas using DPR + pan + zoom
-    const dpr = window.devicePixelRatio || 1;
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [ensureChunk, renderVisible, session?.accessToken]);
 
-    // Clear
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // DPR -> pan -> zoom
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.translate(offsetRef.current.x, offsetRef.current.y);
-    ctx.scale(scaleRef.current, scaleRef.current);
-
-    // Disable smoothing for crisp pixels
-    (ctx as CanvasRenderingContext2D).imageSmoothingEnabled = false;
-
-    // OffscreenCanvas is compatible with drawImage
-    ctx.drawImage(backing as unknown as CanvasImageSource, 0, 0);
-  }, [palette, width]);
-
-  const drawOverlay = useCallback(
-    (cellX: number, cellY: number, colorOverlay: number) => {
-      const overlay = overlayRef.current;
-      const ctx = overlay?.getContext("2d");
-      if (!overlay || !ctx) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      // // Clear
-      // ctx.setTransform(1, 0, 0, 1, 0, 0);
-      // ctx.clearRect(0, 0, overlay.width, overlay.height);
-
-      // DPR -> pan -> zoom
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.translate(offsetRef.current.x, offsetRef.current.y);
-      ctx.scale(scaleRef.current, scaleRef.current);
-      (ctx as CanvasRenderingContext2D).imageSmoothingEnabled = false;
-
-      // Fill the selected cell (safely handle undefined palette entries)
-      const fillRgb = palette.get(colorOverlay) || [0, 0, 0];
-      ctx.fillStyle = `rgba(${fillRgb.join(", ")}, 1)`;
-      ctx.fillRect(cellX, cellY, 1, 1);
-
-      // Cell-aligned border (no 0.5px offsets)
-      ctx.strokeStyle = `rgba(${(
-        palette.get(color === 0 ? 2 : 1) || [0, 0, 0]
-      ).join(", ")}, 1)`;
-      ctx.lineWidth = 2 / scaleRef.current;
-      ctx.strokeRect(cellX, cellY, 1, 1);
-    },
-    []
-  );
-
-  /* =========================
-   * Init backing & seed data
-   * ========================= */
+  // ------- Resize / DPR
   useEffect(() => {
-    // Create backing canvas (offscreen if available)
-    const backing: HTMLCanvasElement | OffscreenCanvas =
-      typeof OffscreenCanvas !== "undefined"
-        ? new OffscreenCanvas(width, height)
-        : (() => {
-            const c = document.createElement("canvas");
-            c.width = width;
-            c.height = height;
-            return c;
-          })();
-
-    const bctx = backing.getContext("2d", { alpha: false }) as
-      | CanvasRenderingContext2D
-      | OffscreenCanvasRenderingContext2D
-      | null;
-    if (!bctx) return;
-
-    // Disable smoothing for crisp pixels
-    (
-      bctx as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
-    ).imageSmoothingEnabled = false as unknown as boolean;
-
-    backingCanvasRef.current = backing;
-    backingCtxRef.current = bctx;
-    imgDataRef.current = bctx.createImageData(width, height);
-
-    // First full repaint
-    dirtyRef.current = [{ x: 0, y: 0, w: width, h: height }];
-
-    // Optional: seed random points + central cross
-    // if (initRandomPoints && initRandomPoints > 0) {
-    //   const buf = bufferRef.current;
-    //   buf.fill(0);
-    //   for (let i = 0; i < initRandomPoints; i++) {
-    //     const x = (Math.random() * width) | 0;
-    //     const y = (Math.random() * height) | 0;
-    //     const c = Math.random() < 0.5 ? 1 : 2; // black or red
-    //     placePixelLocal(x, y, c, true);
-    //   }
-    //   const cx = (width / 2) | 0;
-    //   const cy = (height / 2) | 0;
-    //   for (let x = 0; x < width; x++) placePixelLocal(x, cy, 1, true);
-    //   for (let y = 0; y < height; y++) placePixelLocal(cx, y, 1, true);
-    // }
-
-    paintDirty();
-  }, [height, width, initRandomPoints, placePixelLocal, paintDirty]);
-
-  /* =========================
-   * Resize handling via ResizeObserver (with window fallback)
-   * ========================= */
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const overlay = overlayRef.current;
+    const canvas = canvasRef.current!;
+    const overlay = overlayRef.current!;
     if (!canvas || !overlay) return;
 
-    const dpr = () => window.devicePixelRatio || 1;
+    const apply = () => {
+      const parent = canvas.parentElement!;
+      const w = parent.clientWidth,
+        h = parent.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
 
-    const applySize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const w = parent.clientWidth;
-      const h = parent.clientHeight;
-
-      const ratio = dpr();
-      canvas.width = Math.floor(w * ratio);
-      canvas.height = Math.floor(h * ratio);
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
 
@@ -438,103 +543,299 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       overlay.style.width = canvas.style.width;
       overlay.style.height = canvas.style.height;
 
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      }
-
-      // Respect min scale & center after layout changes
-      // enforceMinScaleAndCenter();
-      paintDirty();
+      // Re-render/sync
+      renderVisible();
+      syncViewport();
     };
 
-    // Prefer ResizeObserver for more reliable container-based sizing
-    const ro = new ResizeObserver(applySize);
+    const ro = new ResizeObserver(apply);
     ro.observe(canvas.parentElement as Element);
-
-    // Fallback in case DPR changes without resize
-    window.addEventListener("resize", applySize);
-    applySize();
+    window.addEventListener("resize", apply, { passive: true });
+    apply();
 
     return () => {
       ro.disconnect();
-      window.removeEventListener("resize", applySize);
+      window.removeEventListener("resize", apply);
     };
-  }, [paintDirty]);
+  }, [renderVisible, syncViewport]);
+
+  // ------- First run: centrar y pintar
+  useEffect(() => {
+    const sc = Math.max(scaleRef.current, 1);
+    setScaleImmediate(sc);
+    const { vw, vh } = getViewSize();
+    const worldW = width * sc,
+      worldH = height * sc;
+    setOffsetImmediate({ x: (vw - worldW) / 2, y: (vh - worldH) / 2 });
+    renderVisible();
+    syncViewport();
+  }, [
+    getViewSize,
+    setOffsetImmediate,
+    setScaleImmediate,
+    width,
+    height,
+    renderVisible,
+    syncViewport,
+  ]);
+
+  // ------- Interacción (igual que tienes; omitido detalle por brevedad — mantiene schedule de sync)
+  const clamp = (v: number, a: number, b: number) =>
+    Math.max(a, Math.min(b, v));
+  const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+  const midpoint = (a: Point, b: Point) => ({
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  });
+  const worldToChunk = (x: number, y: number, size: number) => ({
+    cx: Math.floor(x / size),
+    cy: Math.floor(y / size),
+  });
+
+  const screenToCell = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const cx = clientX - rect.left,
+      cy = clientY - rect.top;
+    const s = scaleRef.current,
+      off = offsetRef.current;
+    return { x: Math.floor((cx - off.x) / s), y: Math.floor((cy - off.y) / s) };
+  }, []);
+
+  const scheduleViewportSync = useCallback(() => {
+    // simple alias para claridad en handlers
+    syncViewport();
+  }, [syncViewport]);
+
+  // ... (handlers de pointer/wheel exactamente como ya tienes, llamando a renderVisible() y scheduleViewportSync())
+  // Para mantener la respuesta corta, no repito todo; tu bloque de handlers actual encaja 1:1.
+
+  // ------- Overlay de selección (igual que tu implementación actual)
+  const drawOverlay = useCallback(
+    (cellX: number, cellY: number, colorOverlay: number) => {
+      const overlay = overlayRef.current;
+      const ctx = overlay?.getContext("2d");
+      if (!overlay || !ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.translate(offsetRef.current.x, offsetRef.current.y);
+      ctx.scale(scaleRef.current, scaleRef.current);
+      (ctx as CanvasRenderingContext2D).imageSmoothingEnabled = false;
+
+      const fillRgb = palette.get(colorOverlay) || [0, 0, 0];
+      ctx.fillStyle = `rgba(${fillRgb.join(",")},1)`;
+      ctx.fillRect(cellX, cellY, 1, 1);
+
+      const strokeRgb = palette.get(color === 0 ? 2 : 1) || [0, 0, 0];
+      ctx.strokeStyle = `rgba(${strokeRgb.join(",")},1)`;
+      ctx.lineWidth = 2 / scaleRef.current;
+      ctx.strokeRect(cellX, cellY, 1, 1);
+    },
+    [color]
+  );
 
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
     const ctx = overlay.getContext("2d");
     if (!ctx) return;
-
-    // limpiar overlay completo
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, overlay.width, overlay.height);
+    if (selectedCells.length)
+      selectedCells.forEach((c) => drawOverlay(c.x, c.y, c.color));
+  }, [selectedCells, scale, offset, drawOverlay]);
 
-    // console.log("selectedCells", selectedCells, scale, offset);
+  // ------- Pintado local (igual que antes, sólo cambiamos lookup por LOD actual)
+  const placePixelLocal = useCallback(
+    (x: number, y: number, palIndex: number) => {
+      const S = chunkSizeForScale(scaleRef.current);
+      const cx = Math.floor(x / S),
+        cy = Math.floor(y / S);
+      const id = cid(cx, cy, S);
+      const ch = ensureChunk(id);
+      const lx = x - cx * S,
+        ly = y - cy * S;
+      if (lx < 0 || ly < 0 || lx >= ch.w || ly >= ch.h) return;
+      ch.buffer[ly * ch.w + lx] = palIndex;
+      ch.dirtyRects.push({ x: lx, y: ly, w: 1, h: 1 });
+      ch.dirty = true;
+    },
+    [ensureChunk]
+  );
 
-    if (selectedCells.length > 0) {
-      selectedCells.forEach((cell) => {
-        // console.log("drawOverlay", cell.x, cell.y, cell.color);
-        drawOverlay(cell.x, cell.y, cell.color);
-      });
-      // const { x, y } = selectedCell;
-      // const dpr = window.devicePixelRatio || 1;
-      // ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // ctx.translate(offsetRef.current.x, offsetRef.current.y);
-      // ctx.scale(scaleRef.current, scaleRef.current);
-      // (ctx as CanvasRenderingContext2D).imageSmoothingEnabled = false;
+  const handlePaint = async () => {
+    if (!selectedCells.length) return;
+    selectedCells.forEach((c) => placePixelLocal(c.x, c.y, c.color));
+    renderVisible();
+    await createPixelsAction({ pixels: selectedCells });
+    const overlay = overlayRef.current;
+    if (overlay)
+      overlay.getContext("2d")?.clearRect(0, 0, overlay.width, overlay.height);
+    setSelectedCells([]);
+  };
 
-      // // ctx.fillStyle = "rgba(0, 200, 255, 0.35)"; // azul semitransparente
-      // // ctx.fillRect(x, y, 1, 1);
+  const cleanSelectedCells = useCallback(
+    (commit = true) => {
+      if (!selectedCells.length) return;
 
-      // ctx.strokeStyle = "black";
-      // ctx.lineWidth = 0.2;
-      // ctx.strokeRect(x, y, 1, 1);
-    }
-  }, [selectedCells, scale, offset]); // 👈 IMPORTANTES
+      // borra local
+      for (const { x, y } of selectedCells) {
+        placePixelLocal(x, y, 0);
+        committedKeysRef.current.delete(`${x},${y}`);
+      }
+      renderVisible();
 
-  /* =========================
-   * First-run: clamp to min scale & paint
-   * ========================= */
+      // limpia overlay/estado
+      setSelectedCells([]);
+      const overlay = overlayRef.current;
+      overlay?.getContext("2d")?.clearRect(0, 0, overlay.width, overlay.height);
+
+      // opcional: persiste el borrado
+      if (commit) {
+        createPixelsAction({
+          pixels: selectedCells.map(({ x, y }) => ({ x, y, color: 0 })),
+        }).catch(console.error);
+      }
+    },
+    [selectedCells, placePixelLocal, renderVisible]
+  );
+
+  // ---- helpers pan/zoom
+
+  // ---- pointer state
+  const spaceDownRef = useRef(false);
+
   useEffect(() => {
-    enforceMinScaleAndCenter(scaleRef.current);
-    paintDirty();
-  }, [enforceMinScaleAndCenter, paintDirty]);
-
-  /* =========================
-   * Global pointer safety (lost pointerup, etc.)
-   * ========================= */
-  useEffect(() => {
-    const handleGlobalPointerUp = () => {
-      if (isPanningRef.current) {
-        isPanningRef.current = false;
-        lastPanRef.current = null;
-        setOffsetImmediate(
-          clampOffsetForScale(offsetRef.current, scaleRef.current)
-        );
-        paintDirty();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        spaceDownRef.current = e.type === "keydown";
+      }
+      if (e.key === "i" || e.key === "I") {
+        // I de "eyedropper"
+        setColorPicker((v) => !v);
+      }
+      if (e.key === "Escape") {
+        setColorPicker(false);
       }
     };
-    window.addEventListener("pointerup", handleGlobalPointerUp);
-    window.addEventListener("pointercancel", handleGlobalPointerUp);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
     return () => {
-      window.removeEventListener("pointerup", handleGlobalPointerUp);
-      window.removeEventListener("pointercancel", handleGlobalPointerUp);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
     };
-  }, [clampOffsetForScale, paintDirty, setOffsetImmediate]);
-
-  /* =========================
-   * Context menu disable on canvas (optional UX)
-   * ========================= */
-  useEffect(() => {
-    const c = canvasRef.current;
-    if (!c) return;
-    const handler = (e: MouseEvent) => e.preventDefault();
-    c.addEventListener("contextmenu", handler);
-    return () => c.removeEventListener("contextmenu", handler);
   }, []);
+
+  // --- límites del mundo (en px de mundo, no de pantalla)
+  const clampOffset = (ox: number, oy: number, s: number) => {
+    const { vw, vh } = getViewSize();
+    // bordes (deja "padding" de viewport, para que no desaparezca el tablero)
+    const minX = Math.min(0, vw - width * s);
+    const minY = Math.min(0, vh - height * s);
+    const maxX = Math.max(0, vw - (vw - width * s)); // == 0 si tablero > viewport
+    const maxY = Math.max(0, vh - (vh - height * s)); // == 0 si tablero > viewport
+    return {
+      x: clamp(ox, minX, maxX),
+      y: clamp(oy, minY, maxY),
+    };
+  };
+
+  const setView = useCallback(
+    (nextScale: number, nextOffset: Offset) => {
+      const clampedOffset = clampOffset(nextOffset.x, nextOffset.y, nextScale);
+      setScaleImmediate(nextScale);
+      setOffsetImmediate(clampedOffset);
+      renderVisible();
+      scheduleViewportSync();
+    },
+    [renderVisible, scheduleViewportSync, setScaleImmediate, setOffsetImmediate]
+  );
+
+  const zoomAt = useCallback(
+    (clientX: number, clientY: number, deltaY: number) => {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const oldS = scaleRef.current;
+      // normaliza el delta y aplica límites
+      const dz = typeof deltaY === "number" ? deltaY : 0;
+      const newS = clamp(oldS * (1 - dz * ZOOM_SPEED), MIN_SCALE, MAX_SCALE);
+      if (newS === oldS) return;
+
+      // Mantener el punto bajo el cursor
+      const ox = offsetRef.current.x;
+      const oy = offsetRef.current.y;
+      const wx = (mx - ox) / oldS;
+      const wy = (my - oy) / oldS;
+      const newOx = mx - wx * newS;
+      const newOy = my - wy * newS;
+
+      setView(newS, { x: newOx, y: newOy });
+    },
+    [setView]
+  );
+
+  const toggleCellAtPointer = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const { x, y } = screenToCell(e.clientX, e.clientY);
+      if (x < 0 || y < 0 || x >= width || y >= height) return;
+
+      const key = `${x},${y}`;
+      const already = committedKeysRef.current.has(key);
+
+      if (already) {
+        // --- borrar ---
+        committedKeysRef.current.delete(key);
+        placePixelLocal(x, y, 0); // 0 = transparente/negro según tu paleta
+        renderVisible();
+
+        // quita del estado
+        setSelectedCells((prev) =>
+          prev.filter((c) => !(c.x === x && c.y === y))
+        );
+      } else {
+        // --- pintar ---
+        committedKeysRef.current.add(key);
+        placePixelLocal(x, y, color);
+        renderVisible();
+
+        const newCell: Color = { x, y, color };
+        setSelectedCells((prev) => [...prev, newCell]);
+      }
+    },
+    [screenToCell, width, height, color, placePixelLocal, renderVisible]
+  );
+
+  // Lee el índice de paleta en una celda del mundo
+  const getPalIndexAt = useCallback(
+    (x: number, y: number): number | null => {
+      if (x < 0 || y < 0 || x >= width || y >= height) return null;
+      const S = chunkSizeForScale(scaleRef.current);
+      const cx = Math.floor(x / S),
+        cy = Math.floor(y / S);
+      const id = cid(cx, cy, S);
+      // si no existe el chunk aún, lo creamos (quedará lleno de 0 hasta que lleguen snapshots)
+      const ch = chunksRef.current.get(id) || ensureChunk(id);
+      const lx = x - cx * S,
+        ly = y - cy * S;
+      if (lx < 0 || ly < 0 || lx >= ch.w || ly >= ch.h) return null;
+      return ch.buffer[ly * ch.w + lx] ?? 0;
+    },
+    [width, height, ensureChunk]
+  );
+
+  // Pick al hacer click/tap
+  const pickColorAtPointer = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const { x, y } = screenToCell(e.clientX, e.clientY);
+      const pal = getPalIndexAt(x, y);
+      if (pal == null) return;
+      setColor(pal);
+      setColorPicker(false); // cerramos el modo picker tras elegir
+    },
+    [screenToCell, getPalIndexAt, setColor, setColorPicker]
+  );
 
   // ======================
   // KEYDOWN SPACE = pintar
@@ -552,413 +853,303 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedCells, color]);
 
-  /* =========================
-   * Pointer & Wheel Handlers
-   * ========================= */
+  const ensurePinchStart = useCallback(() => {
+    if (activeTouches.current.size < 2 || pinchRef.current) return false;
 
-  const placePixelAndBroadcast = useCallback(
-    (x: number, y: number, palIndex: number) => {
-      placePixelLocal(x, y, palIndex, true);
-      paintDirty();
+    const [a, b] = Array.from(activeTouches.current.values());
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
 
-      // enviar al servidor
-      // const ws = wsRef.current;
-      // if (ws && ws.connected) {
-      //   ws.emit("placePixel", { x, y, color: palIndex });
-      // }
-    },
-    [placePixelLocal, paintDirty]
-  );
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const mx = midX - rect.left;
+    const my = midY - rect.top;
 
-  const handlePaint = async () => {
-    if (selectedCells) {
-      selectedCells.forEach((selectedCell) => {
-        placePixelAndBroadcast(
-          selectedCell.x,
-          selectedCell.y,
-          selectedCell.color
-        );
-        const overlay = overlayRef.current;
-        if (overlay) {
-          const ctx = overlay.getContext("2d");
-          ctx?.clearRect(0, 0, overlay.width, overlay.height);
-        }
-      });
+    const s = scaleRef.current;
+    const ox = offsetRef.current.x,
+      oy = offsetRef.current.y;
 
-      await createPixelsAction({
-        pixels: selectedCells,
-      });
+    // “clavamos” el punto de mundo bajo el centro inicial del pinch
+    pinchRef.current = {
+      worldX: (mx - ox) / s,
+      worldY: (my - oy) / s,
+      startMidX: midX,
+      startMidY: midY,
+      startDist: Math.max(1, dist),
+      startScale: s,
+      startOffset: { x: ox, y: oy },
+    };
 
-      setSelectedCells([]); // limpiar selección
-    }
-  };
-
-  const getPixelInformation = (x: number, y: number) => {
-    const idx = y * width + x;
-    console.log("getPixelInformation", x, y, idx);
-    const palIndex = bufferRef.current[idx]!;
-    const rgb = palette.get(palIndex) || [0, 0, 0];
-
-    return { rgb };
-  };
-
-  const select = (x: number, y: number, color: number) => {
-    console.log("select", x, y, color, colorPicker);
-    if (colorPicker) {
-      const data = getPixelInformation(x, y);
-      console.log("pixel information", data);
-
-      const idColor = Array.from(palette.entries()).find(([id, rgb]) => {
-        return (
-          rgb[0] === data.rgb[0] &&
-          rgb[1] === data.rgb[1] &&
-          rgb[2] === data.rgb[2]
-        );
-      });
-
-      console.log("idColor", idColor);
-
-      setColor(idColor ? idColor[0] : 0);
-      setColorPicker(false);
-      return;
-    }
-
-    setSelectedCells((prev) => {
-      if (prev.length === 0) {
-        fetchPixelData(x, y);
-      }
-      const exists = prev.some((p) => p.x === x && p.y === y);
-      // console.log("click cell", x, y, color, exists);
-
-      if (exists) {
-        cleanData();
-        return prev.filter((p) => !(p.x === x && p.y === y));
-      }
-
-      return [...prev, { x, y, color }];
-    });
-
-    setColorPicker(false);
-  };
-
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
-      e.preventDefault();
-
-      const ws = wsRef.current;
-      if (!ws || !ws.connected) return;
-
-      if (e.pointerType === "touch") {
-        const { x, y } = screenToCell(e.clientX, e.clientY);
-        activeTouches.current.set(e.pointerId, {
-          x: e.clientX,
-          y: e.clientY,
-        });
-        (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
-
-        // ws.emit("log", {
-        //   message: "touch",
-        //   type: e.pointerType,
-        //   activeTouches: {
-        //     size: activeTouches.current.size,
-        //     values: JSON.stringify(Array.from(activeTouches.current.values())),
-        //     one: activeTouches.current.size === 1,
-        //     two: activeTouches.current.size === 2,
-        //     zero: activeTouches.current.size === 0,
-        //   },
-        //   pos: { x, y },
-        //   timestamp: new Date().toISOString(),
-        // });
-
-        fingers.current = activeTouches.current.size;
-
-        if (activeTouches.current.size === 2) {
-          // pinch zoom
-          const [p1, p2] = Array.from(activeTouches.current.values());
-          pinchRef.current = {
-            startDist: dist(p1, p2),
-            startScale: scaleRef.current,
-            startOffset: { ...offsetRef.current },
-            startMid: midpoint(p1, p2),
-          };
-          return;
-        }
-
-        if (activeTouches.current.size === 1) {
-          touchStartRef.current = { x: e.clientX, y: e.clientY };
-          return;
-        }
-
-        return;
-      }
-
-      if (e.button === 0 && !e.ctrlKey) {
-        isPanningRef.current = true;
-        lastPanRef.current = { x: e.clientX, y: e.clientY };
-      } else {
-        const { x, y } = screenToCell(e.clientX, e.clientY);
-        select(x, y, color);
-      }
-    },
-    [screenToCell, color, colorPicker]
-  );
-
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
-      const ws = wsRef.current;
-      if (!ws || !ws.connected) return;
-
-      if (e.pointerType === "touch") {
-        const { x, y } = screenToCell(e.clientX, e.clientY);
-
-        // First remove the touch from activeTouches
-        activeTouches.current.delete(e.pointerId);
-
-        // Update fingers count after removal
-        fingers.current = activeTouches.current.size;
-
-        // ws.emit("log", {
-        //   message: "touch mobile up",
-        //   type: e.pointerType,
-        //   startClick: touchStartRef.current,
-        //   fingers: fingers.current,
-        //   activeTouches: {
-        //     size: activeTouches.current.size,
-        //     values: JSON.stringify(Array.from(activeTouches.current.values())),
-        //     one: activeTouches.current.size === 1,
-        //     two: activeTouches.current.size === 2,
-        //     zero: activeTouches.current.size === 0,
-        //   },
-        //   pos: { x, y },
-        //   timestamp: new Date().toISOString(),
-        // });
-
-        // If this was the last finger, check if it was a tap (not a pan/pinch)
-        if (activeTouches.current.size === 0 && touchStartRef.current) {
-          const dragDistance = Math.hypot(
-            e.clientX - touchStartRef.current.x,
-            e.clientY - touchStartRef.current.y
-          );
-
-          // If it was a short tap (less than 10px movement), treat as selection
-          if (dragDistance < 10) {
-            select(x, y, color);
-          }
-
-          touchStartRef.current = null;
-        }
-
-        // Clear pinch when no more touches
-        if (activeTouches.current.size < 2) {
-          pinchRef.current = null;
-        }
-      } else if (e.button === 0) {
-        isPanningRef.current = false;
-        lastPanRef.current = null;
-      }
-    },
-    [screenToCell, color, cleanData, fetchPixelData]
-  );
-
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (e.pointerType === "touch") {
-        const touches = activeTouches.current;
-        const prev = touches.get(e.pointerId);
-        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-        // Pinch with two fingers
-        if (touches.size >= 2 && pinchRef.current) {
-          const [a, b] = Array.from(touches.values());
-          const curDist = dist(a, b);
-          const curMid = midpoint(a, b);
-
-          const minS = getMinScale();
-          const target = clamp(
-            pinchRef.current.startScale *
-              (curDist / pinchRef.current.startDist),
-            minS,
-            MAX_SCALE
-          );
-
-          // Keep the world point under the pinch midpoint
-          const worldX =
-            (pinchRef.current.startMid.x - pinchRef.current.startOffset.x) /
-            pinchRef.current.startScale;
-          const worldY =
-            (pinchRef.current.startMid.y - pinchRef.current.startOffset.y) /
-            pinchRef.current.startScale;
-
-          setScaleImmediate(target);
-
-          if (target <= minS + 1e-6) {
-            // enforceMinScaleAndCenter(target);
-          } else {
-            const nx = curMid.x - worldX * target;
-            const ny = curMid.y - worldY * target;
-            setOffsetImmediate(clampOffsetForScale({ x: nx, y: ny }, target));
-          }
-
-          paintDirty();
-          return;
-        }
-
-        // One-finger pan
-        if (touches.size === 1 && prev) {
-          const dx = e.clientX - prev.x;
-          const dy = e.clientY - prev.y;
-          const next = {
-            x: offsetRef.current.x + dx,
-            y: offsetRef.current.y + dy,
-          };
-          setOffsetImmediate(clampOffsetForScale(next, scaleRef.current));
-          paintDirty();
-        }
-        return;
-      }
-
-      // Mouse/pen
-      // const { x, y } = screenToCell(e.clientX, e.clientY);
-      // drawOverlay(x, y);
-
-      if (isPanningRef.current && lastPanRef.current) {
-        const dx = e.clientX - lastPanRef.current.x;
-        const dy = e.clientY - lastPanRef.current.y;
-        const next = {
-          x: offsetRef.current.x + dx,
-          y: offsetRef.current.y + dy,
-        };
-        setOffsetImmediate(clampOffsetForScale(next, scaleRef.current));
-        paintDirty();
-        lastPanRef.current = { x: e.clientX, y: e.clientY };
-      }
-    },
-    [
-      clampOffsetForScale,
-      drawOverlay,
-      enforceMinScaleAndCenter,
-      getMinScale,
-      paintDirty,
-      screenToCell,
-      setOffsetImmediate,
-      setScaleImmediate,
-    ]
-  );
-
-  const onWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>) => {
-      const isPinch = e.ctrlKey;
-      const modeFactor = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 160 : 1;
-      const deltaY = e.deltaY * modeFactor;
-
-      const prev = scaleRef.current;
-      const zoomAmount = Math.exp(-(isPinch ? 3 : 1) * ZOOM_SPEED * deltaY);
-
-      const next = clamp(prev * zoomAmount, MIN_SCALE, MAX_SCALE);
-      // console.log(zoomAmount, next);
-
-      if (next === prev) return;
-
-      const canvas = canvasRef.current!;
-      const rect = canvas.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-
-      const worldX = (cx - offsetRef.current.x) / prev;
-      const worldY = (cy - offsetRef.current.y) / prev;
-
-      setScaleImmediate(next);
-
-      if (next <= MIN_SCALE + 1e-6) {
-        const minS = getMinScale();
-        const sc = Math.max(next ?? scaleRef.current, minS);
-        setScaleImmediate(sc);
-
-        // Al llegar al mínimo, mantener el punto del mundo bajo el cursor
-        // en la misma posición: recalcular el offset desde worldX/worldY y
-        // luego clamp para que el mundo quede dentro de la vista.
-        const nx = cx - worldX * sc;
-        const ny = cy - worldY * sc;
-        setOffsetImmediate(clampOffsetForScale({ x: nx, y: ny }, sc));
-      } else {
-        const nx = cx - worldX * next;
-        const ny = cy - worldY * next;
-        setOffsetImmediate(clampOffsetForScale({ x: nx, y: ny }, next));
-      }
-
-      paintDirty();
-      // drawOverlay(Math.floor(worldX), Math.floor(worldY));
-    },
-    [
-      clampOffsetForScale,
-      drawOverlay,
-      enforceMinScaleAndCenter,
-      paintDirty,
-      setOffsetImmediate,
-      setScaleImmediate,
-    ]
-  );
-
-  const onPointerCancel = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (e.pointerType === "touch") {
-        activeTouches.current.delete(e.pointerId);
-        pinchRef.current = null;
-      }
-    },
-    []
-  );
-
-  const onPointerLeave = useCallback(() => {
-    if (isPanningRef.current) {
-      isPanningRef.current = false;
-      lastPanRef.current = null;
-      setOffsetImmediate(
-        clampOffsetForScale(offsetRef.current, scaleRef.current)
-      );
-      paintDirty();
-    }
-  }, [clampOffsetForScale, paintDirty, setOffsetImmediate]);
-
-  /* =========================
-   * Derived values / memo
-   * ========================= */
+    // al entrar en pinch, cancelamos pan/tap
+    isPanningRef.current = false;
+    panningActiveRef.current = false;
+    tapStartRef.current = null;
+    tapMovedRef.current = true;
+    return true;
+  }, []);
+  // ------- UI
   const a11yLabel = useMemo(
     () => `Editable pixel board ${width} by ${height}`,
     [width, height]
   );
 
-  /* =========================
-   * Render
-   * ========================= */
+  useEffect(() => {
+    setColorPicker(false);
+  }, [color]);
+
   return (
     <div
       className="relative w-full h-full overflow-hidden touch-none select-none"
       role="application"
       aria-label={a11yLabel}
+      style={{ touchAction: "none" }} // <— añade esto al wrapper
     >
-      {/* Base canvas */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0"
-        onPointerMove={onPointerMove}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onPointerLeave={onPointerLeave}
-        onWheel={onWheel}
-        // Helpful for screen readers to skip
-        aria-hidden="true"
+        style={{ touchAction: "none" }}
+        onContextMenu={(e) => e.preventDefault()}
+        // --- ZOOM con rueda (desktop/trackpad)
+        onWheel={(e) => {
+          const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+          zoomAt(e.clientX, e.clientY, dy);
+        }}
+        // --- POINTER DOWN
+        onPointerDown={(e) => {
+          e.preventDefault();
+          if (colorPicker) {
+            const isTouch = e.pointerType === "touch";
+
+            if (isTouch) {
+              // si entran 2 dedos, permite pinch-zoom; no hagas pick
+              activeTouches.current.set(e.pointerId, {
+                x: e.clientX,
+                y: e.clientY,
+              });
+              e.currentTarget.setPointerCapture(e.pointerId);
+
+              if (activeTouches.current.size >= 2) {
+                ensurePinchStart();
+                return;
+              }
+
+              // 1 dedo = pick inmediato
+              pickColorAtPointer(e);
+              return;
+            }
+
+            // Desktop: cualquier botón = pick
+            pickColorAtPointer(e);
+            return;
+          }
+
+          const isTouch = e.pointerType === "touch";
+          if (isTouch) {
+            activeTouches.current.set(e.pointerId, {
+              x: e.clientX,
+              y: e.clientY,
+            });
+            e.currentTarget.setPointerCapture(e.pointerId);
+
+            if (activeTouches.current.size === 1) {
+              // preparar tap y pan (pero pan aún NO activo)
+              isPanningRef.current = true;
+              panningActiveRef.current = false;
+              lastPanRef.current = { x: e.clientX, y: e.clientY };
+              tapStartRef.current = {
+                x: e.clientX,
+                y: e.clientY,
+                t: performance.now(),
+              };
+              tapMovedRef.current = false;
+
+              return;
+            }
+            if (activeTouches.current.size >= 2) {
+              ensurePinchStart(); // tu helper de pinch estable
+              return;
+            }
+          }
+
+          // --- Desktop igual que antes ---
+          if (e.button === 0) {
+            isPanningRef.current = true;
+            lastPanRef.current = { x: e.clientX, y: e.clientY };
+            e.currentTarget.setPointerCapture(e.pointerId);
+
+            return;
+          }
+          if (e.button === 2) {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            toggleCellAtPointer(e);
+
+            return;
+          }
+        }}
+        // --- POINTER MOVE
+        onPointerMove={(e) => {
+          const isTouch = e.pointerType === "touch";
+
+          if (isTouch) {
+            if (!activeTouches.current.has(e.pointerId)) return;
+            activeTouches.current.set(e.pointerId, {
+              x: e.clientX,
+              y: e.clientY,
+            });
+
+            // --- PINCH (siempre activo con 2 dedos, haya picker o no) ---
+            if (activeTouches.current.size === 2) {
+              if (!pinchRef.current) {
+                if (!ensurePinchStart()) return; // inicia pinch si no estaba
+              }
+
+              const [p1, p2] = Array.from(activeTouches.current.values());
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+              const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+
+              const factorRaw = dist / Math.max(1, pinchRef.current!.startDist);
+              const factor = Math.min(2, Math.max(0.5, factorRaw));
+              const targetScale = clamp(
+                pinchRef.current!.startScale * factor,
+                MIN_SCALE,
+                MAX_SCALE
+              );
+
+              const rect = canvasRef.current!.getBoundingClientRect();
+              const mx = midX - rect.left;
+              const my = midY - rect.top;
+
+              const newOx = mx - pinchRef.current!.worldX * targetScale;
+              const newOy = my - pinchRef.current!.worldY * targetScale;
+
+              setScaleImmediate(targetScale);
+              setOffsetImmediate({ x: newOx, y: newOy });
+              renderSoon();
+              scheduleViewportSync();
+              return;
+            }
+
+            // --- 1 dedo ---
+            if (activeTouches.current.size === 1) {
+              // Si el picker está activo: no pan (solo permitimos pinch con 2 dedos arriba)
+              if (colorPicker) return;
+
+              // Pan con umbral (para no robar taps)
+              if (isPanningRef.current) {
+                if (!panningActiveRef.current && tapStartRef.current) {
+                  const dx0 = e.clientX - tapStartRef.current.x;
+                  const dy0 = e.clientY - tapStartRef.current.y;
+                  if (Math.hypot(dx0, dy0) > TAP_MAX_MOVE) {
+                    panningActiveRef.current = true;
+                    tapMovedRef.current = true;
+                    lastPanRef.current = { x: e.clientX, y: e.clientY };
+                  } else {
+                    return; // aún puede ser tap
+                  }
+                }
+
+                if (panningActiveRef.current && lastPanRef.current) {
+                  const dx = e.clientX - lastPanRef.current.x;
+                  const dy = e.clientY - lastPanRef.current.y;
+                  lastPanRef.current = { x: e.clientX, y: e.clientY };
+                  setOffsetImmediate({
+                    x: offsetRef.current.x + dx,
+                    y: offsetRef.current.y + dy,
+                  });
+                  renderSoon();
+                  scheduleViewportSync();
+                }
+              }
+            }
+            return;
+          }
+
+          // --- Desktop PAN (igual que tenías) ---
+          if (isPanningRef.current && lastPanRef.current) {
+            const dx = e.clientX - lastPanRef.current.x;
+            const dy = e.clientY - lastPanRef.current.y;
+            lastPanRef.current = { x: e.clientX, y: e.clientY };
+            setOffsetImmediate({
+              x: offsetRef.current.x + dx,
+              y: offsetRef.current.y + dy,
+            });
+            renderVisible();
+            scheduleViewportSync();
+          }
+        }}
+        // --- POINTER UP / CANCEL
+        onPointerUp={(e) => {
+          const isTouch = e.pointerType === "touch";
+          e.currentTarget.releasePointerCapture?.(e.pointerId);
+
+          if (colorPicker && e.pointerType === "touch") {
+            e.currentTarget.releasePointerCapture?.(e.pointerId);
+            activeTouches.current.delete(e.pointerId);
+            if (activeTouches.current.size < 2) pinchRef.current = null;
+            return;
+          }
+
+          if (isTouch) {
+            activeTouches.current.delete(e.pointerId);
+
+            // si estabas en pinch y pasas a 1 dedo: ya lo tienes con reanclaje
+            if (pinchRef.current && activeTouches.current.size === 1) {
+              pinchRef.current = null;
+              const [rest] = Array.from(activeTouches.current.values());
+              isPanningRef.current = true;
+              panningActiveRef.current = false; // el dedo que queda aún no pannea
+              lastPanRef.current = rest ? { x: rest.x, y: rest.y } : null;
+              skipNextMoveRef.current = true; // evita salto
+              tapStartRef.current = null; // no hay tap tras pinch
+              tapMovedRef.current = true;
+              return;
+            }
+
+            // fin total: 0 dedos -> evaluar TAP
+            if (activeTouches.current.size === 0) {
+              const start = tapStartRef.current;
+              const dt = start ? performance.now() - start.t : Infinity;
+              if (start && !tapMovedRef.current && dt <= TAP_MAX_MS) {
+                // TAP = toggle (pintar/borrar) en móvil
+                toggleCellAtPointer(e);
+              }
+              // reset
+              pinchRef.current = null;
+              isPanningRef.current = false;
+              panningActiveRef.current = false;
+              lastPanRef.current = null;
+              tapStartRef.current = null;
+              tapMovedRef.current = false;
+              return;
+            }
+
+            return;
+          }
+
+          // --- Desktop ---
+          if (isPanningRef.current) {
+            isPanningRef.current = false;
+            lastPanRef.current = null;
+          }
+        }}
+        onPointerCancel={(e) => {
+          e.currentTarget.releasePointerCapture?.(e.pointerId);
+          activeTouches.current.delete(e.pointerId);
+          if (activeTouches.current.size < 2) pinchRef.current = null;
+
+          isPanningRef.current = false;
+          lastPanRef.current = null;
+          tapStartRef.current = null;
+          tapMovedRef.current = false;
+        }}
       />
-      {/* Overlay canvas */}
+
       <canvas
         ref={overlayRef}
         className="absolute inset-0 pointer-events-none"
         aria-hidden="true"
       />
-
-      {/* Toolbar */}
-      {/* Paint button */}
 
       <Colors
         setColor={setColor}
@@ -968,15 +1159,23 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         handlePaint={handlePaint}
       >
         <Button
-          onClick={() => setColorPicker((v) => true)}
+          disabled={selectedCells.length === 0}
+          className="bg-red-700 text-white hover:bg-red-500"
+          onClick={() => cleanSelectedCells()}
+        >
+          <IconTrashFilled stroke={2} />
+        </Button>
+        <Button
+          onClick={() => setColorPicker(true)}
           style={{
             backgroundColor: colorPicker
-              ? "rgb(216, 216, 216)"
-              : "rgb(178, 178, 178)",
+              ? "rgb(216,216,216)"
+              : "rgb(178,178,178)",
           }}
         >
           <IconColorPicker stroke={2} />
         </Button>
+
         <div className="bg-black/30 flex items-center px-2 rounded-md">
           <div className="flex gap-2 items-center min-w-20">
             {userData && (
@@ -994,8 +1193,6 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
           </div>
         </div>
       </Colors>
-
-      {/* Simple UI example for color switching (optional) */}
     </div>
   );
 };

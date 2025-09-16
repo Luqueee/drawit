@@ -48,13 +48,7 @@ export const Colors: React.FC<{
         >
           Paint (Space)
         </Button>
-        <Button
-          disabled={selectedCells.length === 0}
-          className="bg-red-700 text-white hover:bg-red-500"
-          onClick={() => setSelectedCells([])}
-        >
-          <IconTrashFilled stroke={2} />
-        </Button>
+
         {children}
       </div>
       <div className=" gap-2  text-white w-full  backdrop-blur-sm">
