@@ -214,7 +214,6 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       const ctx = canvas.getContext("2d", { alpha: false })!;
       (ctx as any).imageSmoothingEnabled = false;
 
-      //@ts-expect-error aaaaaaaaa
       const imgData = ctx.createImageData(cw, ch);
       const buffer = new Uint8Array(cw * ch);
 
@@ -226,7 +225,6 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         w: cw,
         h: ch,
         canvas,
-        //@ts-expect-error aaaaaaaa
         ctx,
         imgData,
         buffer,
