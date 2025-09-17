@@ -41,7 +41,7 @@ const u32le = (buf: Uint8Array, off: number) =>
  */
 async function fetchBatch(ids: string[]): Promise<void> {
     try {
-        console.log('[worker] fetchBatch', ids.length, 'tiles');
+        // console.log('[worker] fetchBatch', ids.length, 'tiles');
         if (!ids.length) return;
 
         const qs = encodeURIComponent(ids.join(';'));

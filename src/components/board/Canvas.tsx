@@ -18,7 +18,7 @@ import { Colors } from "./Colors";
 import { Color } from "@/@types/color";
 import { Button } from "../ui/button";
 import { IconColorPicker, IconTrashFilled } from "@tabler/icons-react";
-import { useCanvasProvider } from "./CanvasProvider";
+import { useCanvasStore } from "@/stores/canvas.store";
 
 type Point = { x: number; y: number };
 type Offset = Point;
@@ -93,7 +93,8 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 }) => {
   const { data: session } = useSession();
   const { fetchPixelData, cleanData, userData } = usePixelData();
-  const { ws } = useCanvasProvider();
+  const wsRef = useRef<Socket | null>(null);
+  const { users, setUsersCount } = useCanvasStore((state) => state);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -243,6 +244,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         w: cw,
         h: ch,
         canvas,
+        //@ts-ignore nse porque da error de tipado esto da error la verdad
         ctx,
         imgData,
         buffer,
@@ -347,7 +349,9 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     if (subScheduled.current != null) return;
     subScheduled.current = requestAnimationFrame(() => {
       subScheduled.current = null;
-      if (!ws || !ws.connected) return;
+      const ws = wsRef.current;
+
+      if (!wsRef || !ws) return;
 
       const add = Array.from(subAddPending.current);
       const remove = Array.from(subRemovePending.current);
@@ -442,10 +446,31 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 
   // ------- Socket IO
   useEffect(() => {
+    if (!session?.accessToken) return;
+
+    const ws = io(`${envs.API_URL}/rplace`, {
+      auth: { token: `Bearer ${session?.accessToken}` },
+    });
+
+    wsRef.current = ws;
+
+    // ws.on("sockets:users", (data: { users: number }) => {
+    //   console.log("Users connected:", data.users);
+    //   setUsersCount(data.users);
+    // });
+
+    // ws.onAny((e, ...args) => console.log("[ws] event", e, ...args));
     if (!ws) return;
 
     ws.on("connect", () => {
+      console.log("[ws] connected");
+
       syncViewport();
+    });
+
+    ws.on("sockets:users", (data: { users: number }) => {
+      console.log("Users connected:", data.users);
+      setUsersCount(data.users);
     });
 
     ws.on(
@@ -479,6 +504,12 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         version: number;
         pixels: Array<[number, number, number]>; // [lx, ly, pal]
       }) => {
+        console.log(
+          "[ws] chunk:update",
+          msg.id,
+          "v" + msg.version,
+          msg.pixels.length
+        );
         // --- 1) Aplica en el chunk de origen (el del mensaje) ---
         const { size: srcSize, cx: srcCx, cy: srcCy } = parseCid(msg.id);
         const srcId = cid(srcCx, srcCy, srcSize);
@@ -526,7 +557,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     );
 
     // ws.onAny((e) => console.log("[ws] event", e));
-  }, [ensureChunk, renderSoon, syncViewport]);
+  }, [ensureChunk, renderVisible, renderSoon, syncViewport]);
 
   // ------- Worker
   useEffect(() => {
