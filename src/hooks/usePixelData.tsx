@@ -21,10 +21,12 @@ export const usePixelData = () => {
       },
     });
 
-    console.log(data);
+    // console.log(data);
     setPixelExist(data.found);
 
-    if (!data.found) return;
+    if (!data.found) {
+      cleanData();
+    }
 
     if (data.user && data.pixel) {
       setPixelData(data.pixel);

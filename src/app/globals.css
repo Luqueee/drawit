@@ -120,3 +120,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.buttonCanvas {
+  @apply text-white bg-popover hover:cursor-pointer hover:bg-popover/80 transition-all duration-300 rounded-full size-[40px] flex items-center justify-center;
+}

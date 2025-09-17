@@ -12,25 +12,34 @@ export const HowTo = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className="bg-gray-300 group hover:cursor-pointer hover:bg-gray-500 transition-all duration-300 border-2 border-gray-500 rounded-full size-[40px] flex items-center justify-center"
-        >
-          <IconQuestionMark className="text-gray-700 group-hover:text-gray-300 transition-all duration-300" />
+        <button type="button" className="group buttonCanvas ">
+          <IconQuestionMark className=" group-hover:text-gray-300 transition-all duration-300 " />
         </button>
       </DialogTrigger>
-      <DialogContent className="h-fit md:lg:w-[60vw] w-[90vw] bg-white/50 backdrop-blur-md text-slate-600">
+      <DialogContent className="h-[50vh] md:lg:w-[60vw] w-[90vw]  bg-popover/80 backdrop-blur-md text-white">
         <DialogHeader>
-          <DialogTitle>Como Pintar</DialogTitle>
+          <DialogTitle className="text-3xl">
+            Tutorial de como pintar
+          </DialogTitle>
           <div className="mt-8 text-start flex flex-col gap-2">
             <p>Es muy sencillo:</p>
-            <p className="font-bold">mueves con el click izquierdo</p>
-            <p className="font-bold">scroll para zoom </p>
-            <p className="font-bold">click derecho para pintar</p>
-            <p className="font-bold">DISFRUTA Y CHILLEA</p>
-            <p>
+            <ol>
+              <li className="font-bold">mueves con el click izquierdo</li>
+              <li className="font-bold">scroll para zoom </li>
+              <li className="font-bold">click derecho para pintar</li>
+              <li className="font-bold">DISFRUTA Y CHILLEA</li>
+            </ol>
+            <p className="mt-8">
               Si te preguntas porque no he hecho que con espacio puedas
               rellenar, basicamente es porque no hay limite de pixeles jejeje,
+            </p>
+
+            <p className="mt-8">
+              Musica hecha por{" "}
+              <a className="border-b-2 border-white" href="https://markox.dev/">
+                Markox
+              </a>{" "}
+              en 15 minutos. Es una bestia
             </p>
           </div>
         </DialogHeader>

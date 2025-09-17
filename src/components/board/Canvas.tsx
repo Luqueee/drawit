@@ -18,6 +18,7 @@ import { Colors } from "./Colors";
 import { Color } from "@/@types/color";
 import { Button } from "../ui/button";
 import { IconColorPicker, IconTrashFilled } from "@tabler/icons-react";
+import { useCanvasProvider } from "./CanvasProvider";
 
 type Point = { x: number; y: number };
 type Offset = Point;
@@ -92,7 +93,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 }) => {
   const { data: session } = useSession();
   const { fetchPixelData, cleanData, userData } = usePixelData();
-
+  const { ws } = useCanvasProvider();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -142,7 +143,6 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
   const TAP_MAX_MOVE = 8; // px de pantalla para distinguir tap de pan
   const panningActiveRef = useRef(false); // sólo true cuando superas el umbral
 
-  const wsRef = useRef<Socket | null>(null);
   const workerRef = useRef<Worker | null>(null);
 
   const chunksRef = useRef<Map<ChunkId, Chunk>>(new Map());
@@ -231,6 +231,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       const ctx = canvas.getContext("2d", { alpha: false })!;
       (ctx as any).imageSmoothingEnabled = false;
 
+      //@ts-ignore bla bla
       const imgData = ctx.createImageData(cw, ch);
       const buffer = new Uint8Array(cw * ch);
 
@@ -346,7 +347,6 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     if (subScheduled.current != null) return;
     subScheduled.current = requestAnimationFrame(() => {
       subScheduled.current = null;
-      const ws = wsRef.current;
       if (!ws || !ws.connected) return;
 
       const add = Array.from(subAddPending.current);
@@ -442,10 +442,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
 
   // ------- Socket IO
   useEffect(() => {
-    const ws = io(`${envs.API_URL}/rplace`, {
-      auth: { token: `Bearer ${session?.accessToken}` },
-    });
-    wsRef.current = ws;
+    if (!ws) return;
 
     ws.on("connect", () => {
       syncViewport();
@@ -529,11 +526,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     );
 
     // ws.onAny((e) => console.log("[ws] event", e));
-
-    return () => {
-      ws.close();
-    };
-  }, [ensureChunk, renderVisible, syncViewport, session?.accessToken]);
+  }, [ensureChunk, renderVisible, syncViewport]);
 
   // ------- Worker
   useEffect(() => {
@@ -835,6 +828,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
       const already = committedKeysRef.current.has(key);
 
       if (already) {
+        cleanData();
         // --- borrar ---
         committedKeysRef.current.delete(key);
         // placePixelLocal(x, y, 0); // 0 = transparente/negro según tu paleta
@@ -845,6 +839,8 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         );
         renderVisible();
       } else {
+        fetchPixelData(x, y);
+
         // --- pintar ---
         committedKeysRef.current.add(key);
         // placePixelLocal(x, y, color);
