@@ -526,7 +526,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     );
 
     // ws.onAny((e) => console.log("[ws] event", e));
-  }, [ensureChunk, renderVisible, syncViewport]);
+  }, [ensureChunk, renderSoon, syncViewport]);
 
   // ------- Worker
   useEffect(() => {
