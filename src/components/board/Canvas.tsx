@@ -748,31 +748,15 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     setSelectedCells([]);
   };
 
-  const cleanSelectedCells = useCallback(
-    (commit = true) => {
-      if (!selectedCells.length) return;
+  const cleanSelectedCells = useCallback(() => {
+    if (!selectedCells.length) return;
 
-      // borra local
-      for (const { x, y } of selectedCells) {
-        placePixelLocal(x, y, 0);
-        committedKeysRef.current.delete(`${x},${y}`);
-      }
-      renderVisible();
-
-      // limpia overlay/estado
-      setSelectedCells([]);
-      const overlay = overlayRef.current;
-      overlay?.getContext("2d")?.clearRect(0, 0, overlay.width, overlay.height);
-
-      // opcional: persiste el borrado
-      if (commit) {
-        createPixelsAction({
-          pixels: selectedCells.map(({ x, y }) => ({ x, y, color: 0 })),
-        }).catch(console.error);
-      }
-    },
-    [selectedCells, placePixelLocal, renderVisible]
-  );
+    renderVisible();
+    // limpia overlay/estado
+    setSelectedCells([]);
+    const overlay = overlayRef.current;
+    overlay?.getContext("2d")?.clearRect(0, 0, overlay.width, overlay.height);
+  }, [selectedCells, setSelectedCells, renderVisible]);
 
   // ---- helpers pan/zoom
 
