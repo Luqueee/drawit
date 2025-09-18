@@ -124,7 +124,7 @@ export const MusicConfig = () => {
       {!isMobile && (
         <Popover>
           <PopoverTrigger className="buttonCanvas">
-            <Volume2Icon />
+            {muted ? <VolumeX /> : <Volume2Icon />}
           </PopoverTrigger>
           <PopoverContent align="start" side="left">
             <div className="flex items-center gap-4">
@@ -143,7 +143,7 @@ export const MusicConfig = () => {
                 {!isPlaying ? <Play /> : <Pause />}
               </button>
               <button onClick={() => setMuted(!muted)}>
-                <VolumeX />
+                {muted ? <VolumeX /> : <Volume2Icon />}
               </button>
             </div>
           </PopoverContent>
