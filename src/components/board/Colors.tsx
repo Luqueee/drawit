@@ -21,38 +21,11 @@ export const Colors: React.FC<{
   handlePaint,
   children,
 }) => {
-  const isColorSelected = palette.has(color) && selectedCells.length > 0;
-  const current = palette.get(color);
-
   return (
     <div className="absolute bottom-0 left-0 p-1 flex flex-col w-full  gap-1">
-      <div className="flex gap-1">
-        <Button
-          type="button"
-          onClick={handlePaint}
-          disabled={selectedCells.length === 0}
-          className={`px-3 py-1 h-full min-h-10 rounded-lg min-w-30 text-white font-bold  ${
-            palette.has(color)
-              ? " hover:bg-green-700"
-              : "bg-gray-500 cursor-not-allowed"
-          }`}
-          style={
-            isColorSelected && current
-              ? {
-                  backgroundColor: `rgb(${current.join(", ")})`,
-                  color: color === 0 ? "black" : "white",
-                  border: color === 0 ? `2px solid black` : `none`,
-                }
-              : undefined
-          }
-        >
-          Paint (Space)
-        </Button>
-
-        {children}
-      </div>
+      <div className="flex gap-1 h-10 ">{children}</div>
       <div className=" gap-2  text-white w-full  backdrop-blur-sm">
-        <div className="flex flex-wrap gap-1 bg-black/30 p-1 rounded-md md:lg:max-h-none max-h-15 overflow-y-auto">
+        <div className="flex flex-wrap gap-1 bg-black/30 p-1 rounded-md max-h-15 h-15 overflow-y-auto">
           {Array.from(palette.entries()).map(([id, p]) => {
             return (
               <Button

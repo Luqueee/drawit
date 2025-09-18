@@ -34,13 +34,13 @@ export const HowTo = () => {
               rellenar, basicamente es porque no hay limite de pixeles jejeje,
             </p>
 
-            <p className="mt-8">
+            {/* <p className="mt-8">
               Musica hecha por{" "}
               <a className="border-b-2 border-white" href="https://markox.dev/">
                 Markox
               </a>{" "}
               en 15 minutos. Es una bestia
-            </p>
+            </p> */}
           </div>
         </DialogHeader>
       </DialogContent>

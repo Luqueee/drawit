@@ -124,3 +124,16 @@
 .buttonCanvas {
   @apply text-white bg-popover hover:cursor-pointer hover:bg-popover/80 transition-all duration-300 rounded-full size-[40px] flex items-center justify-center;
 }
+
+.section::-webkit-scrollbar {
+  width: 10px;
+}
+
+.section::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+.section::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+}

@@ -108,6 +108,9 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
   const offsetRef = useRef<Offset>({ x: 0, y: 0 });
   const skipNextMoveRef = useRef(false); // ignora el primer move tras soltar un dedo del pinch
 
+  const isColorSelected = palette.has(color) && selectedCells.length > 0;
+  const current = palette.get(color);
+
   const committedKeysRef = useRef<Set<string>>(new Set()); // todo lo ya enviado/confirmado
 
   const setScaleImmediate = useCallback((s: number) => {
@@ -1220,13 +1223,35 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         handlePaint={handlePaint}
       >
         <Button
+          type="button"
+          onClick={handlePaint}
           disabled={selectedCells.length === 0}
-          className="bg-red-700 text-white hover:bg-red-500"
+          className={`px-3 h-full rounded-lg min-w-30 text-white font-bold  ${
+            palette.has(color)
+              ? " hover:bg-green-700"
+              : "bg-gray-500 cursor-not-allowed"
+          }`}
+          style={
+            isColorSelected && current
+              ? {
+                  backgroundColor: `rgb(${current.join(", ")})`,
+                  color: color === 0 ? "black" : "white",
+                  border: color === 0 ? `2px solid black` : `none`,
+                }
+              : undefined
+          }
+        >
+          Paint (Space)
+        </Button>
+        <Button
+          disabled={selectedCells.length === 0}
+          className="bg-red-700 text-white hover:bg-red-500 h-full"
           onClick={() => cleanSelectedCells()}
         >
           <IconTrashFilled stroke={2} />
         </Button>
         <Button
+          className="h-full"
           onClick={() => setColorPicker(true)}
           style={{
             backgroundColor: colorPicker
