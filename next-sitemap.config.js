@@ -1,15 +1,13 @@
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-const disallowedPaths = [];
-
 /** @type {import('next-sitemap').IConfig} */
-module.exports = {
+export default {
   siteUrl: "https://drawit.place",
   generateRobotsTxt: true,
-  sitemapSize: 7000,
-  // generateIndexSitemap: true,
+  sitemapSize: 5000, // Fixed duplicate property
+  generateIndexSitemap: true, // Enable sitemap index generation
   priority: 0.8,
-  sitemapSize: 5000,
-  generateRobotsTxt: true,
+  robotsTxtOptions: {
+    policies: [{ userAgent: "*", allow: "/" }],
+  },
   transform: async (config, path) => {
     let priority = config.priority;
     let changefreq = config.changefreq;
