@@ -840,13 +840,12 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
   const toggleCellAtPointer = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       const { x, y } = screenToCell(e.clientX, e.clientY);
-      if (x < 0 || y < 0 || x >= width || y >= height) return;
+      // if (x < 0 || y < 0 || x >= width || y >= height) return;
 
       const key = `${x},${y}`;
       const already = committedKeysRef.current.has(key);
 
       if (already) {
-        cleanData();
         // --- borrar ---
         committedKeysRef.current.delete(key);
         // placePixelLocal(x, y, 0); // 0 = transparente/negro según tu paleta
@@ -856,9 +855,8 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
           prev.filter((c) => !(c.x === x && c.y === y))
         );
         renderVisible();
+        cleanData();
       } else {
-        fetchPixelData(x, y);
-
         // --- pintar ---
         committedKeysRef.current.add(key);
         // placePixelLocal(x, y, color);
@@ -866,9 +864,18 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         const newCell: Color = { x, y, color };
         setSelectedCells((prev) => [...prev, newCell]);
         renderVisible();
+        fetchPixelData(x, y);
       }
     },
-    [screenToCell, width, height, color, placePixelLocal, renderVisible]
+    [
+      screenToCell,
+      cleanData,
+      width,
+      height,
+      color,
+      placePixelLocal,
+      renderVisible,
+    ]
   );
 
   // Lee el índice de paleta en una celda del mundo
