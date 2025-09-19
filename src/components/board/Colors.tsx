@@ -3,24 +3,12 @@
 import React from "react";
 import { Button } from "../ui/button";
 import { palette } from "@/shared/colors";
-import { Color } from "@/@types/color";
-import { IconTrashFilled } from "@tabler/icons-react";
 
 export const Colors: React.FC<{
   setColor: (color: number) => void;
-  selectedCells: Color[];
-  setSelectedCells: (cells: Color[]) => void;
   color: number;
-  handlePaint: () => void;
   children?: React.ReactNode;
-}> = ({
-  setColor,
-  color,
-  setSelectedCells,
-  selectedCells,
-  handlePaint,
-  children,
-}) => {
+}> = ({ setColor, color, children }) => {
   return (
     <div className="absolute bottom-0 left-0 w-full p-1 ">
       <div className=" bg-foreground-contrast/50 backdrop-blur-sm border border-zinc-900/20 p-2 rounded-xl  flex flex-col gap-1">

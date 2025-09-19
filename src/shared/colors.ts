@@ -140,16 +140,31 @@ export const palette = new Map<number, [number, number, number]>([
     [111, [29, 41, 81]],    // Space Cadet
 
     // ==== Violetas y púrpuras ====
+    [240, [245, 240, 250]], // Lilac White (muy pálido)
+    [241, [238, 230, 250]], // Soft Lilac
+    [242, [230, 220, 250]], // Pastel Lilac
+    [243, [216, 191, 216]], // Thistle Lilac
+    [244, [200, 162, 200]], // Light Lilac
+    [245, [186, 145, 200]], // Medium Lilac
+    [246, [170, 125, 185]], // Classic Lilac
+    [247, [155, 110, 175]], // Deep Lilac
+    [248, [140, 95, 165]],  // Dark Lilac
+    [249, [120, 80, 150]],  // Royal Lilac
+    [250, [100, 65, 135]],  // Rich Lilac
+    // ==== Lilas ====
+
     [38, [230, 230, 250]],  // Lavender
-    [37, [221, 160, 221]],  // Plum
     [66, [216, 191, 216]],  // Thistle
+    [37, [221, 160, 221]],  // Plum
     [35, [218, 112, 214]],  // Orchid
     [67, [186, 85, 211]],   // Medium Orchid
-    [33, [124, 58, 237]],   // Violet
     [34, [147, 51, 234]],   // Purple
+    [33, [124, 58, 237]],   // Violet
     [68, [153, 50, 204]],   // Dark Orchid
     [69, [148, 0, 211]],    // Dark Violet
     [70, [102, 51, 153]],   // Rebecca Purple
+
+
 
     // ==== Tierras y neutros cálidos ====
     [42, [245, 245, 220]],  // Beige

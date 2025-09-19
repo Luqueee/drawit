@@ -1214,13 +1214,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         className="absolute inset-0 pointer-events-none"
         aria-hidden="true"
       />
-      <Colors
-        setColor={setColor}
-        color={color}
-        setSelectedCells={setSelectedCells}
-        selectedCells={selectedCells}
-        handlePaint={handlePaint}
-      >
+      <Colors setColor={setColor} color={color}>
         <Button
           type="button"
           onClick={handlePaint}
