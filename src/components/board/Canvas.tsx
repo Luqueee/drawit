@@ -472,7 +472,7 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
     });
 
     ws.on("sockets:users", (data: { users: number }) => {
-      console.log("Users connected:", data.users);
+      // console.log("Users connected:", data.users);
       setUsersCount(data.users);
     });
 

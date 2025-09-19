@@ -18,7 +18,7 @@ export function SignIn() {
           Iniciar sesión
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-[50vw]">
+      <DialogContent className="md:lg:max-w-[50vw] max-w-[80vw]">
         <DialogHeader>
           <DialogTitle
             className={`"text-center flex items-center text-[#2A2A2A] justify-center text-4xl font-semibold ${pixelify.className}`}

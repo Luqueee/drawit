@@ -32,7 +32,7 @@ export default async function User() {
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className=" mr-1 bg-foreground-contrast text-foreground border border-foreground/50 md:lg:w-80 w-full p-4"
+        className=" mr-1 bg-foreground-contrast text-foreground border border-foreground/50 md:lg:w-80 w-70 p-4"
         align="start"
         side="left"
       >
