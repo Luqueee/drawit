@@ -11,10 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
+import { Sign } from "crypto";
 export default async function User() {
   const session = await auth();
 
-  if (!session?.user) return null;
+  if (!session?.user) return <SignIn />;
 
   return (
     <DropdownMenu>
@@ -30,10 +31,28 @@ export default async function User() {
           />
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className=" mr-1 " align="start">
-        <DropdownMenuItem>
-          <SignOut />
-        </DropdownMenuItem>
+      <DropdownMenuContent
+        className=" mr-1 bg-foreground-contrast text-foreground border border-foreground/50 md:lg:w-80 w-full p-4"
+        align="start"
+        side="left"
+      >
+        <div className="grid grid-cols-[auto_1fr] items-center gap-4 mb-8">
+          {session?.user.image && (
+            <Image
+              width={50}
+              height={50}
+              src={session.user.image}
+              alt="User Avatar"
+              draggable={false}
+              className="rounded-full border-2 border-foreground/50 "
+            />
+          )}
+          <div>
+            <p>{session.user.name}</p>
+          </div>
+        </div>
+
+        <SignOut />
       </DropdownMenuContent>
     </DropdownMenu>
   );

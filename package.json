@@ -7,7 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start -p 3007",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "postbuild": "next-sitemap --config next-sitemap.config.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -27,6 +28,7 @@
     "lucide-react": "^0.542.0",
     "next": "15.5.2",
     "next-auth": "5.0.0-beta.29",
+    "next-sitemap": "^4.2.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-howler": "^5.2.0",

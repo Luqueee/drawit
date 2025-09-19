@@ -1,0 +1,13 @@
+# *
+User-agent: *
+Allow: /
+
+# Googlebot-Image
+User-agent: Googlebot-Image
+Allow: /images/*
+
+# Host
+Host: https://preview.luqueee.dev
+
+# Sitemaps
+Sitemap: https://preview.luqueee.dev/sitemap.xml

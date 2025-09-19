@@ -2,7 +2,6 @@ import { IconQuestionMark } from "@tabler/icons-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -16,7 +15,7 @@ export const HowTo = () => {
           <IconQuestionMark className=" group-hover:text-gray-300 transition-all duration-300 " />
         </button>
       </DialogTrigger>
-      <DialogContent className="h-[50vh] md:lg:w-[60vw] w-[90vw]  bg-popover/80 backdrop-blur-md text-white">
+      <DialogContent className="md:lg:h-[50vh] h-[75vh] md:lg:w-[60vw] w-[90vw] overflow-y-auto  backdrop-blur-md text-foreground">
         <DialogHeader>
           <DialogTitle className="text-3xl">
             Tutorial de como pintar

@@ -1,7 +1,8 @@
 "use server"
-import { auth } from "@/auth";
+import { auth, signIn } from "@/auth";
 import { envs } from "@/env";
 import axios from "axios";
+import { redirect } from "next/navigation";
 
 const API_URL = envs.API_URL
 export const createPixelsAction = async ({
@@ -14,7 +15,7 @@ export const createPixelsAction = async ({
     if (!session) {
 
         console.error("No session, cannot create pixel")
-        return
+        return signIn("google")
     }
 
     // console.log("Creating pixels:", pixels);

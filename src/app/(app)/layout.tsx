@@ -9,13 +9,13 @@ export default async function AppLayout({
 }) {
   const session = await auth();
 
-  if (!session) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center">
-        <SignIn />
-      </div>
-    );
-  }
+  // if (!session) {
+  //   return (
+  //     <div className="w-screen h-screen flex items-center justify-center">
+  //       <SignIn />
+  //     </div>
+  //   );
+  // }
 
   console.log(session);
 

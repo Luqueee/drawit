@@ -39,7 +39,7 @@ const ZOOM_SPEED = 0.0018;
 // ---- Tiling / LOD ----
 const BASE_CHUNK = 64;
 const PREFETCH_RING = 1;
-const MAX_VISIBLE_CHUNKS = 100; // cap para zoom-out (reduce peticiones)
+const MAX_VISIBLE_CHUNKS = 200; // cap para zoom-out (reduce peticiones)
 function chunkSizeForScale(scale: number) {
   if (scale < 0.4) return BASE_CHUNK * 4; // 256
   if (scale < 0.75) return BASE_CHUNK * 2; // 128
@@ -1214,7 +1214,6 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
         className="absolute inset-0 pointer-events-none"
         aria-hidden="true"
       />
-
       <Colors
         setColor={setColor}
         color={color}
@@ -1251,18 +1250,18 @@ const BoardCanvas: React.FC<BoardCanvasProps> = ({
           <IconTrashFilled stroke={2} />
         </Button>
         <Button
-          className="h-full"
+          className="h-full border border-foreground/20"
           onClick={() => setColorPicker(true)}
           style={{
             backgroundColor: colorPicker
-              ? "rgb(216,216,216)"
-              : "rgb(178,178,178)",
+              ? "#e8e6e6"
+              : "var(--foreground-contrast)",
           }}
         >
           <IconColorPicker stroke={2} />
         </Button>
 
-        <div className="bg-black/30 flex items-center px-2 rounded-md">
+        <div className="border border-foreground/20 bg-foreground-contrast flex items-center px-2 rounded-md">
           <div className="flex gap-2 items-center min-w-20">
             {userData && (
               <>

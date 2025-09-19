@@ -126,7 +126,7 @@ export const MusicConfig = () => {
           <PopoverTrigger className="buttonCanvas">
             {muted ? <VolumeX /> : <Volume2Icon />}
           </PopoverTrigger>
-          <PopoverContent align="start" side="left">
+          <PopoverContent align="start" side="left" className="">
             <div className="flex items-center gap-4">
               <Slider
                 onValueChange={(value) => setVolume(value[0])}
@@ -158,7 +158,7 @@ export const MusicConfig = () => {
             <IconRadio className=" group-hover:text-gray-300 transition-all duration-300 " />
           </button>
         </DialogTrigger>
-        <DialogContent className="md:lg:h-[50vh] h-[80vh] flex flex-col gap-4  overflow-hidden md:lg:w-[60vw] w-[90vw] bg-popover/80 backdrop-blur-md text-white">
+        <DialogContent className="md:lg:h-[50vh] h-[80vh] flex flex-col gap-4  overflow-hidden md:lg:w-[60vw] w-[90vw] backdrop-blur-md text-foreground">
           <DialogHeader className="h-fit ">
             <DialogTitle className="text-3xl">Selecciona la radio</DialogTitle>
           </DialogHeader>
@@ -172,7 +172,7 @@ export const MusicConfig = () => {
                 e.stopPropagation();
               }
             }}
-            className="h-10"
+            className="h-15 "
             // className="w-full px-3 py-2 mt-2 mb-4 text-black bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
@@ -182,8 +182,8 @@ export const MusicConfig = () => {
                 key={`${radio.title}-${idx}`}
                 className={`my-2 hover:cursor-pointer p-2 rounded-lg text-start border transition-all duration-300  ${
                   currentRadioIndex === idx && radio.title == radioName
-                    ? "bg-zinc-900 border-transparent"
-                    : " bg-transparent border-zinc-700"
+                    ? "bg-zinc-900 border-transparent text-white"
+                    : " bg-transparent border-zinc-700/20"
                 }`}
                 onClick={() => selectRadio(idx)}
               >
