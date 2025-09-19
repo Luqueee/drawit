@@ -32,7 +32,7 @@ export const metadata: Metadata = {
       {
         url: `${envs.SITE_URL}/og.webp`,
         width: 1200,
-        height: 630,
+        height: 600,
         alt: "Drawit - Pixel Art colaborativo online",
       },
     ],
@@ -53,7 +53,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="es" className="dark" suppressHydrationWarning>
       <head>
         <meta
           name="viewport"
