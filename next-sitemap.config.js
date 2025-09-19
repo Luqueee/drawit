@@ -20,7 +20,7 @@ module.exports = {
         allow: ["/images/*"],
       },
     ],
-    additionalSitemaps: [`${baseUrl}/sitemap.xml`],
+    // additionalSitemaps: [`${baseUrl}/sitemap.xml`],
     sitemap: `${baseUrl}/sitemap.xml`,
   },
   exclude: disallowedPaths,
