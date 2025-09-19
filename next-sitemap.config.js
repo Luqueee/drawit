@@ -25,4 +25,11 @@ export default {
       alternateRefs: config.alternateRefs ?? [],
     };
   },
+  additionalPaths: async (config) => {
+    const result = [];
+
+    result.push({ loc: "/" });
+
+    return result;
+  },
 };
