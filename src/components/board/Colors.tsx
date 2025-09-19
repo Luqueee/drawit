@@ -11,7 +11,7 @@ export const Colors: React.FC<{
 }> = ({ setColor, color, children }) => {
   return (
     <div className="absolute bottom-0 left-0 w-full p-1 ">
-      <div className=" bg-foreground-contrast/50 backdrop-blur-sm border border-zinc-900/20 p-2 rounded-xl  flex flex-col gap-1">
+      <div className=" backdrop-blur-sm border border-zinc-900/20 p-2 rounded-xl  flex flex-col gap-1">
         <div className="flex gap-1 h-10 ">{children}</div>
         <div className=" gap-2  text-white w-full  backdrop-blur-sm">
           <div className="flex flex-wrap gap-1  p-1 rounded-md h-20 overflow-y-auto">
