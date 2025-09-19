@@ -171,6 +171,15 @@ export const palette = new Map<number, [number, number, number]>([
     [41, [210, 180, 140]],  // Tan
     [40, [160, 82, 45]],    // Sienna
     [39, [113, 63, 18]],    // Brown
+    [232, [205, 133, 63]],  // Light Sienna
+    [233, [139, 69, 19]],   // Dark Sienna
+    [234, [210, 105, 30]],  // Chocolate Sienna
+    [235, [255, 130, 71]],  // Bright Sienna (casi Coral)
+
+    [236, [139, 69, 19]],   // Saddle Brown (oscuro intermedio)
+    [237, [92, 51, 23]],    // Deep Brown (más oscuro que el base)
+    [238, [77, 38, 17]],    // Coffee Brown
+    [239, [65, 29, 15]],    // Almost Black Brown 2
     // ==== Marrones adicionales ==== 
     [217, [125, 100, 35]],  // Golden Brown
     [218, [140, 110, 40]],  // Ochre Brown
