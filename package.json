@@ -26,7 +26,7 @@
     "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.542.0",
-    "next": "15.5.2",
+    "next": "15.5.9",
     "next-auth": "5.0.0-beta.29",
     "next-sitemap": "^4.2.3",
     "react": "19.1.0",
